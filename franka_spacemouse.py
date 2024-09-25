@@ -12,6 +12,7 @@ from pynput import keyboard
 import datetime
 import os
 import pickle
+import pandas as pd
 
 class FrankaController:
     def __init__(self, conversion_factor=0.002, angle_conversion_factor=0.8, mouse_axes_conversion=SpaceMouseState(1, 1, 1, 1, 1, 1), max_runtime=-1):
@@ -41,24 +42,25 @@ class FrankaController:
         
         if buttons[1]: # right button
             print("Button 2 pressed")
-            if self.is_gripping:
-                self.gripper.move(0.08, 0.2) # release gripper
-            else:
-                self.gripper.grasp(0, 0.2, 50, 0.04, 0.04) # grip
+            
+            self.is_gripping = not self.is_gripping # flip early to log correctly
 
-            self.is_gripping = not self.is_gripping
+            if self.is_gripping:
+                self.gripper.grasp(0, 0.2, 50, 0.04, 0.04) # grip
+            else:
+                self.gripper.move(0.08, 0.2) # release gripper
+
 
     def process_log(self):
-        q = self.panda.get_log()['q']
-        dq = self.panda.get_log()['dq']
+        logs = self.panda.get_log()
 
-        poses = []
-        print(len(q), len(dq))
-        for qq in q:
-            poses.append(panda_py.fk(qq))
+        q = logs['q']
+        dq = logs['dq']
+        t = logs['time']
+        poses = [panda_py.fk(qq) for qq in q]
 
-        print(np.array(q).shape, np.array(dq).shape, np.array(poses).shape)
-        return [np.array(q), np.array(dq), np.array(poses)]
+        # print(np.array(q).shape, np.array(dq).shape, np.array(poses).shape)
+        return [t, np.array(q), np.array(dq), np.array(poses)]
 
     def enter_logging(self):
         # logs directly from libfranka
@@ -66,10 +68,11 @@ class FrankaController:
         self.panda.enable_logging(buffer_size=seconds_to_log * 1000)
 
         # our own logs (gripper / camera)
-        self._logs = {'gripper': []}
+        self._logs = {'gripper': [], 'time': []}
 
     def log_step(self):
         self._logs['gripper'].append(self.is_gripping)
+        self._logs['time'].append(time.time_ns())
 
     def exit_logging(self):
         date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -82,15 +85,14 @@ class FrankaController:
         with open(os.path.join(path, 'trajectory.pkl'), 'wb') as f:
             pickle.dump(self.process_log(), f)
 
-        with open(os.path.join(path, 'gripper.pkl'), 'wb') as f:
-            pickle.dump(self._logs['gripper'], f)
+        pd.DataFrame(self._logs).to_csv(os.path.join(path, 'logs.csv'))
 
         print(len(self._logs['gripper']))
         print(sum(self._logs['gripper']))
 
 
     def enable_spacemouse_control(self, log=False):
-
+        self.is_gripping = self.gripper.read_once().is_grasped
         self.pose = self.panda.get_pose()
         self.pos = self.pose[:3, 3]
         self.angles = Rotation.from_matrix(self.pose[:3, :3]).as_quat()
