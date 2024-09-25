@@ -22,10 +22,13 @@ class SpaceMouseState:
 
     def __mul__(self, other):
         return SpaceMouseState(self.x*other.x, self.y*other.y, self.z*other.z, self.roll*other.roll, self.pitch*other.pitch, self.yaw*other.yaw)
+    
+def button_callback(state, buttons):
+    print(f"State: {state}, Buttons: {buttons}")
 
 class SpaceMouseController:
-    def __init__(self):
-        success = pyspacemouse.open()
+    def __init__(self, button_callback=button_callback):
+        success = pyspacemouse.open(button_callback=button_callback)
         if not success:
             exit()
 

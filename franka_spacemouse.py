@@ -6,51 +6,109 @@ constants.JOINT_LIMITS_LOWER = np.array([-2.7437, -1.7837, -2.9007, -3.0421, -2.
 constants.JOINT_LIMITS_UPPER = np.array([2.7437, 1.7837, 2.9007, -0.1518, 2.8065, 4.5169, 3.0159])
 import panda_py
 from panda_py import libfranka
-from spacemousecontroller import SpaceMouseController
+from spacemousecontroller import SpaceMouseController, SpaceMouseState
 from panda_py import controllers
+from pynput import keyboard
+import datetime
+import os
+import pickle
 
 class FrankaController:
-    def __init__(self):
+    def __init__(self, conversion_factor=0.002, angle_conversion_factor=0.8, mouse_axes_conversion=SpaceMouseState(1, 1, 1, 1, 1, 1), max_runtime=-1):
         self.panda = panda_py.Panda("172.16.0.2")
         self.gripper = libfranka.Gripper("172.16.0.2")
-        self.spacemouse_controller = SpaceMouseController()
+        self.spacemouse_controller = SpaceMouseController(button_callback=self.button_callback)
+        self.mouse_axes_conversion = mouse_axes_conversion
         
-        self.conversion_factor = 0.002
-        self.angle_conversion_factor = 0.8
+        self.conversion_factor = conversion_factor
+        self.angle_conversion_factor = angle_conversion_factor
+        self.rotation_enabled = True
+        self.is_gripping = False
+        self.max_runtime = max_runtime
 
-        self.panda.move_to_start()
-        time.sleep(1)
+        self.reset_robot_position()
 
         self.pose = self.panda.get_pose()
-        self.x0 = self.pose[:3, 3]
-        self.q0 = Rotation.from_matrix(self.pose[:3, :3]).as_quat()
+        self.pos = self.pose[:3, 3]
+        self.angles = Rotation.from_matrix(self.pose[:3, :3]).as_quat()
 
         self.ctrl = controllers.CartesianImpedance()
 
+    def reset_robot_position(self):
+        self.panda.move_to_start()
+        time.sleep(1)
+
+    def button_callback(self, state, buttons):
+        if buttons[0]: # left button
+            print("Button 1 pressed")
+            self.rotation_enabled = not self.rotation_enabled
+        
+        if buttons[1]: # right button
+            print("Button 2 pressed")
+            if self.is_gripping:
+                self.gripper.move(0.08, 0.2) # release gripper
+            else:
+                self.gripper.grasp(0, 0.2, 50, 0.04, 0.04) # grip
+
+            self.is_gripping = not self.is_gripping
+
+    def process_log(self):
+        q = self.panda.get_log()['q']
+        dq = self.panda.get_log()['dq']
+
+        poses = []
+        for qq in q:
+            poses.append(panda_py.fk(qq))
+        return [np.array(q), np.array(dq), np.array(poses)]
+
+    def enter_logging(self):
+        self.panda.enable_logging(self.max_runtime if self.max_runtime > 0 else 10 * 1000)
+
+    def exit_logging(self):
+        date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        path = os.path.join("logs", "trajectory_"+str(date))
+        os.makedirs(path, exist_ok=True)
+
+        self.panda.disable_logging()
+        print('Trajectory recorded!')
+
+        with open(os.path.join(path, 'trajectory.pkl'), 'wb') as f:
+            pickle.dump(self.process_log(), f)
+
 
     def enable_spacemouse_control(self):
+        print(f"Starting SpaceMouse control for {self.max_runtime} seconds...")
         self.panda.start_controller(self.ctrl)
 
-        with self.panda.create_context(frequency=1e2, max_runtime=-1) as ctx:
+        self.enter_logging()
+
+        with self.panda.create_context(frequency=1e2, max_runtime=self.max_runtime) as ctx:
             while ctx.ok():
+
                 mouse = self.spacemouse_controller.read()
+                mouse = mouse * self.mouse_axes_conversion
 
-                self.x0[0] += -mouse.y * self.conversion_factor # in meters ;   todo: suggested:  clip xyz to sy 20-30 cm box;  coords to be calculated
-                self.x0[1] += mouse.x * self.conversion_factor
-                self.x0[2] += mouse.z * self.conversion_factor
+                self.pos[0] += -mouse.y * self.conversion_factor # in meters ;   todo: suggested:  clip xyz to sy 20-30 cm box;  coords to be calculated
+                self.pos[1] += mouse.x * self.conversion_factor
+                self.pos[2] += mouse.z * self.conversion_factor
 
-                rot = Rotation.from_quat(self.q0)
-                delta_rot = Rotation.from_euler('zyx', np.array([mouse.yaw, mouse.pitch, -mouse.roll])*self.angle_conversion_factor, degrees=True)
+                rot = Rotation.from_quat(self.angles)
+                new_d_rot = np.array([mouse.yaw, mouse.pitch, -mouse.roll]) * self.angle_conversion_factor * int(self.rotation_enabled)
+                delta_rot = Rotation.from_euler('zyx', new_d_rot, degrees=True)
                 rot = rot * delta_rot
-                self.q0 = rot.as_quat()
+                self.angles = rot.as_quat()
 
                 #q = panda_py.ik(pose)    # opposite is pose = panda_py.fk(q)
                 #q = q.clip(constants.JOINT_LIMITS_LOWER, constants.JOINT_LIMITS_UPPER)
 
-                print(self.x0*100, mouse.x)
+                # print(self.pos*100, mouse.x)
 
-                self.ctrl.set_control(self.x0, self.q0)
+                self.ctrl.set_control(self.pos, self.angles)
+        
+        self.exit_logging()
+        self.reset_robot_position()
+        self.panda.stop_controller()
 
 if __name__ == "__main__":
-    fc = FrankaController()
+    fc = FrankaController(max_runtime=10)
     fc.enable_spacemouse_control()
