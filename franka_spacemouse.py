@@ -102,7 +102,7 @@ class FrankaController:
 
         log and self.enter_logging()
 
-        with self.panda.create_context(frequency=1e2, max_runtime=self.max_runtime) as ctx:
+        with self.panda.create_context(frequency=1e3, max_runtime=self.max_runtime) as ctx:
             while ctx.ok():
                 self.log_step()
 
