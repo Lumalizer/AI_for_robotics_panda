@@ -1,5 +1,5 @@
 # our ignores
-examples
+examples_panda
 logs
 
 # Byte-compiled / optimized / DLL files
