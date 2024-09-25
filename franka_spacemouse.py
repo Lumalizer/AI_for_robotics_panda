@@ -28,10 +28,6 @@ class FrankaController:
 
         self.reset_robot_position()
 
-        self.pose = self.panda.get_pose()
-        self.pos = self.pose[:3, 3]
-        self.angles = Rotation.from_matrix(self.pose[:3, :3]).as_quat()
-
         self.ctrl = controllers.CartesianImpedance()
 
     def reset_robot_position(self):
@@ -77,6 +73,11 @@ class FrankaController:
 
 
     def enable_spacemouse_control(self):
+
+        self.pose = self.panda.get_pose()
+        self.pos = self.pose[:3, 3]
+        self.angles = Rotation.from_matrix(self.pose[:3, :3]).as_quat()
+        
         print(f"Starting SpaceMouse control for {self.max_runtime} seconds...")
         self.panda.start_controller(self.ctrl)
 
@@ -101,14 +102,18 @@ class FrankaController:
                 #q = panda_py.ik(pose)    # opposite is pose = panda_py.fk(q)
                 #q = q.clip(constants.JOINT_LIMITS_LOWER, constants.JOINT_LIMITS_UPPER)
 
-                # print(self.pos*100, mouse.x)
-
                 self.ctrl.set_control(self.pos, self.angles)
         
         self.exit_logging()
         self.reset_robot_position()
         self.panda.stop_controller()
+        time.sleep(1)
+
+    def collect_demonstrations(self, quantity = 10):
+        for i in range(quantity):
+            print(f"Collecting demonstration {i+1} of {quantity}...")
+            self.enable_spacemouse_control()
 
 if __name__ == "__main__":
     fc = FrankaController(max_runtime=10)
-    fc.enable_spacemouse_control()
+    fc.collect_demonstrations(3)
