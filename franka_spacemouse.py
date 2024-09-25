@@ -13,11 +13,19 @@ import datetime
 import os
 import pickle
 import pandas as pd
+from camera import Camera
 
 class FrankaController:
     def __init__(self, conversion_factor=0.002, angle_conversion_factor=0.8, mouse_axes_conversion=SpaceMouseState(1, 1, 1, 1, 1, 1), max_runtime=-1):
         self.panda = panda_py.Panda("172.16.0.2")
         self.gripper = libfranka.Gripper("172.16.0.2")
+
+        try:
+            self.camera = Camera()
+        except:
+            print("Camera not connected.")
+            self.camera = None
+
         self.spacemouse_controller = SpaceMouseController(button_callback=self.button_callback)
         self.mouse_axes_conversion = mouse_axes_conversion
         
@@ -69,14 +77,18 @@ class FrankaController:
 
         # our own logs (gripper / camera)
         self._logs = {'gripper': [], 'time': []}
+        self._camera_logs = []
 
     def log_step(self):
         self._logs['gripper'].append(self.is_gripping)
         self._logs['time'].append(time.time_ns())
+        self._camera_logs.append(self.camera.get_frame())
 
     def exit_logging(self):
         date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         path = os.path.join("logs", "trajectory_"+str(date))
+        camera_path = os.path.join(path, "camera")
+
         os.makedirs(path, exist_ok=True)
 
         self.panda.disable_logging()
@@ -86,6 +98,11 @@ class FrankaController:
             pickle.dump(self.process_log(), f)
 
         pd.DataFrame(self._logs).to_csv(os.path.join(path, 'logs.csv'))
+
+        if self.camera is not None:
+            os.makedirs(camera_path, exist_ok=True)
+            for i, frame in enumerate(self._camera_logs):
+                frame.save(os.path.join(camera_path, f"{i}.png"))
 
         print(len(self._logs['gripper']))
         print(sum(self._logs['gripper']))
@@ -101,10 +118,14 @@ class FrankaController:
         self.panda.start_controller(self.ctrl)
 
         log and self.enter_logging()
-
+        
         with self.panda.create_context(frequency=1e3, max_runtime=self.max_runtime) as ctx:
+            iteration = 0
             while ctx.ok():
-                self.log_step()
+                if iteration % 10 == 0: # collect grapper / camera logs every 10 iterations (10 per second)
+                    self.log_step()
+
+                iteration += 1
 
                 mouse = self.spacemouse_controller.read()
                 mouse = mouse * self.mouse_axes_conversion
@@ -136,4 +157,4 @@ class FrankaController:
 
 if __name__ == "__main__":
     fc = FrankaController(max_runtime=10)
-    fc.collect_demonstrations(3)
+    fc.collect_demonstrations(1)
