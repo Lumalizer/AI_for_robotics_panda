@@ -6,7 +6,7 @@ constants.JOINT_LIMITS_LOWER = np.array([-2.7437, -1.7837, -2.9007, -3.0421, -2.
 constants.JOINT_LIMITS_UPPER = np.array([2.7437, 1.7837, 2.9007, -0.1518, 2.8065, 4.5169, 3.0159])
 import panda_py
 from panda_py import libfranka
-from spacemousecontroller import SpaceMouseController, SpaceMouseState
+from spacemousecontroller import SpaceMouseController
 from panda_py import controllers
 
 class FrankaController:
@@ -39,14 +39,18 @@ class FrankaController:
                 self.x0[1] += mouse.x * self.conversion_factor
                 self.x0[2] += mouse.z * self.conversion_factor
 
-                rot = Rotation.from_quat(q0)
+                rot = Rotation.from_quat(self.q0)
                 delta_rot = Rotation.from_euler('zyx', np.array([mouse.yaw, mouse.pitch, -mouse.roll])*self.angle_conversion_factor, degrees=True)
                 rot = rot * delta_rot
-                q0 = rot.as_quat()
+                self.q0 = rot.as_quat()
 
                 #q = panda_py.ik(pose)    # opposite is pose = panda_py.fk(q)
                 #q = q.clip(constants.JOINT_LIMITS_LOWER, constants.JOINT_LIMITS_UPPER)
 
                 print(self.x0*100, mouse.x)
 
-                self.ctrl.set_control(self.x0, q0)
+                self.ctrl.set_control(self.x0, self.q0)
+
+if __name__ == "__main__":
+    fc = FrankaController()
+    fc.enable_spacemouse_control()
