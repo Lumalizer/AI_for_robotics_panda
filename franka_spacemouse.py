@@ -53,12 +53,23 @@ class FrankaController:
         dq = self.panda.get_log()['dq']
 
         poses = []
+        print(len(q), len(dq))
         for qq in q:
             poses.append(panda_py.fk(qq))
+
+        print(np.array(q).shape, np.array(dq).shape, np.array(poses).shape)
         return [np.array(q), np.array(dq), np.array(poses)]
 
     def enter_logging(self):
-        self.panda.enable_logging(self.max_runtime if self.max_runtime > 0 else 10 * 1000)
+        # logs directly from libfranka
+        seconds_to_log = (self.max_runtime if self.max_runtime > 0 else 10)
+        self.panda.enable_logging(buffer_size=seconds_to_log * 1000)
+
+        # our own logs (gripper / camera)
+        self._logs = {'gripper': []}
+
+    def log_step(self):
+        self._logs['gripper'].append(self.is_gripping)
 
     def exit_logging(self):
         date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -71,20 +82,27 @@ class FrankaController:
         with open(os.path.join(path, 'trajectory.pkl'), 'wb') as f:
             pickle.dump(self.process_log(), f)
 
+        with open(os.path.join(path, 'gripper.pkl'), 'wb') as f:
+            pickle.dump(self._logs['gripper'], f)
 
-    def enable_spacemouse_control(self):
+        print(len(self._logs['gripper']))
+        print(sum(self._logs['gripper']))
+
+
+    def enable_spacemouse_control(self, log=False):
 
         self.pose = self.panda.get_pose()
         self.pos = self.pose[:3, 3]
         self.angles = Rotation.from_matrix(self.pose[:3, :3]).as_quat()
-        
+
         print(f"Starting SpaceMouse control for {self.max_runtime} seconds...")
         self.panda.start_controller(self.ctrl)
 
-        self.enter_logging()
+        log and self.enter_logging()
 
         with self.panda.create_context(frequency=1e2, max_runtime=self.max_runtime) as ctx:
             while ctx.ok():
+                self.log_step()
 
                 mouse = self.spacemouse_controller.read()
                 mouse = mouse * self.mouse_axes_conversion
@@ -104,15 +122,15 @@ class FrankaController:
 
                 self.ctrl.set_control(self.pos, self.angles)
         
-        self.exit_logging()
         self.reset_robot_position()
         self.panda.stop_controller()
+        log and self.exit_logging()
         time.sleep(1)
 
     def collect_demonstrations(self, quantity = 10):
         for i in range(quantity):
             print(f"Collecting demonstration {i+1} of {quantity}...")
-            self.enable_spacemouse_control()
+            self.enable_spacemouse_control(log=True)
 
 if __name__ == "__main__":
     fc = FrankaController(max_runtime=10)
