@@ -20,6 +20,9 @@ class SpaceMouseState:
     pitch: float
     yaw: float
 
+    def __mul__(self, other):
+        return SpaceMouseState(self.x*other.x, self.y*other.y, self.z*other.z, self.roll*other.roll, self.pitch*other.pitch, self.yaw*other.yaw)
+
 class SpaceMouseController:
     def __init__(self):
         success = pyspacemouse.open()
