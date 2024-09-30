@@ -1,7 +1,25 @@
-# mp4 file with the camera frames
-# could take avg in the timestamps to allign the indices  (resampling)
-# save data at high rate then for the traiining set for fine tuning we can resample to track wgar we want  
-# keyboard control - left/right mouse to use the gripper dynamically - move gripper to close it a little bit 
-## separate thread? (useful in the future)
-# start collecting trajectories 
-# combine the wrist and base cameras for octo / vla is only external 
+w1
+- literature review - using the method for something practical 
+- list of relevant literature exploring what has been done since the release of octo/vla/robocat
+
+franka arm documentation 
+- building libfranka 
+- franka-py library - version robot version 5.5.0'  libfranka 0.13.3
+- install real time operating system 
+- panda.py 13.3
+
+w2
+- interfacing with he arm using the libraries 
+- first gripping of an object, making sure that the robot is controllable from the panda_py interface 
+- using the 3D space mouse for control 
+- setting the bounding boxes of the robot movement 
+
+w3
+- logging first trajectories -> using the proper data format suited for the models (RLDS format)
+- mp4 file with the camera frames
+- could take avg in the timestamps to allign the indices  (resampling)
+- save data at high rate then for the traiining set for fine tuning we can resample to track wgar we want  
+- keyboard control - left/right mouse to use the gripper dynamically - move gripper to close it a little bit 
+- separate thread? (useful in the future)
+- start collecting trajectories 
+- combine the wrist and base cameras for octo / vla is only external 
