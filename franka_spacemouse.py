@@ -68,7 +68,7 @@ class FrankaController:
     def process_log(self):
         logs = self.panda.get_log()
 
-        t = np.squeeze(t)
+        # t = np.squeeze(t)
     
         q = logs['q']
         dq = logs['dq']
