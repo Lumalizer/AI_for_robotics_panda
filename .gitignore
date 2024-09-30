@@ -1,6 +1,8 @@
 # our ignores
 examples_panda
 logs
+examples 
+sample_logs
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
