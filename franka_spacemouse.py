@@ -8,25 +8,22 @@ import panda_py
 from panda_py import libfranka
 from spacemousecontroller import SpaceMouseController, SpaceMouseState
 from panda_py import controllers
-from pynput import keyboard
 import datetime
 import os
 import pickle
 import pandas as pd
-from camera import Camera
-import threading 
+import threading
+from camera import Camera     
+
+
+is_recording = 0
+
 
 class FrankaController:
-    def __init__(self, conversion_factor=0.002, angle_conversion_factor=0.8, mouse_axes_conversion=SpaceMouseState(1, 1, 1, 1, 1, 1), max_runtime=-1):
+    def __init__(self, conversion_factor=0.003, angle_conversion_factor=0.4, mouse_axes_conversion=SpaceMouseState(1, 1, 1, 1, 1, 1), max_runtime=-1):
         self.panda = panda_py.Panda("172.16.0.2")
         self.gripper = libfranka.Gripper("172.16.0.2")
-
-        try:
-            self.camera = Camera()
-        except:
-            print("Camera not connected.")
-            self.camera = None
-
+  
         self.spacemouse_controller = SpaceMouseController(button_callback=self.button_callback)
         self.mouse_axes_conversion = mouse_axes_conversion
         
@@ -35,12 +32,6 @@ class FrankaController:
         self.rotation_enabled = True
         self.is_gripping = False
         self.max_runtime = max_runtime
-        
-        # threading
-        self._logs = {'gripper': [], 'time': []}
-        self._camera_logs = []
-        self._logging_thread = None
-        self._stop_logging = threading.Event()
 
         self.reset_robot_position()
 
@@ -51,10 +42,18 @@ class FrankaController:
         time.sleep(1)
 
     def button_callback(self, state, buttons):
+        global is_recording
+
         if buttons[0]: # left button
             print("Button 1 pressed")
-            self.rotation_enabled = not self.rotation_enabled
-        
+            #self.rotation_enabled = not self.rotation_enabled
+
+            if is_recording == 2:
+                is_recording = 0
+            else:
+                is_recording = 1
+                print('Recording trajectory...')
+    
         if buttons[1]: # right button
             print("Button 2 pressed")
             
@@ -69,46 +68,40 @@ class FrankaController:
     def process_log(self):
         logs = self.panda.get_log()
 
+        t = np.squeeze(t)
+    
         q = logs['q']
         dq = logs['dq']
-        t = logs['time']
+        t = np.array(logs['time'])
+        t = (t-t[0]) / 1e3
         poses = [panda_py.fk(qq) for qq in q]
 
+        gripper = np.array(self._logs['gripper'])
+        gripper_time = np.array(self._logs['time'])
+
+        cam_time = np.array(self._camera_time)
+ 
+        cam_time = (cam_time - gripper_time[0]) / 1e9
+        gripper_time = (gripper_time - gripper_time[0]) / 1e9
+
         # print(np.array(q).shape, np.array(dq).shape, np.array(poses).shape)
-        return [t, np.array(q), np.array(dq), np.array(poses)]
+        return {'franka_t':t, 'franka_q':np.array(q), 'franka_dq':np.array(dq), 'franka_pose':np.array(poses), 'gripper_t':gripper_time, 'gripper_status':gripper, 'camera_frame_t':cam_time}
 
     def enter_logging(self):
-        
-        # logging thread
-        self._stop_logging.clear()
-        self._logging_thread = threading.Thread(target=self._log_thread)
-        self._logging_thread.start()
-        print('logging thread started')
+        global is_recording
 
         # logs directly from libfranka
-        print('enabling libfranka logging')
-        seconds_to_log = (self.max_runtime if self.max_runtime > 0 else 10)
+        seconds_to_log = (self.max_runtime if self.max_runtime > 0 else 600)
         self.panda.enable_logging(buffer_size=seconds_to_log * 1000)
 
         # our own logs (gripper / camera)
-        self._logs = {'gripper': [], 'time': []}
+        self._logs = {'gripper': [0], 'time': [time.time_ns()]}
         self._camera_logs = []
+        self._camera_time = []
 
-    def _log_thread(self):
-        while not self._stop_logging.is_set():
-            self.log_step()
-            time.sleep(0.01)
-
-    def log_step(self):
-        self._logs['gripper'].append(self.is_gripping)
-        self._logs['time'].append(time.time_ns())
-        self._camera_logs.append(self.camera.get_frame())
+        is_recording = 2
 
     def exit_logging(self):
-        self._stop_logging.set()
-        if self._logging_thread is not None:
-            self._logging_thread.join()
-
         date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         path = os.path.join("logs", "trajectory_"+str(date))
         camera_path = os.path.join(path, "camera")
@@ -121,18 +114,18 @@ class FrankaController:
         with open(os.path.join(path, 'trajectory.pkl'), 'wb') as f:
             pickle.dump(self.process_log(), f)
 
-        pd.DataFrame(self._logs).to_csv(os.path.join(path, 'logs.csv'))
+        print(len(self._camera_logs))
+        os.makedirs(camera_path, exist_ok=True)
+        for i, frame in enumerate(self._camera_logs):
+            frame.save(os.path.join(camera_path, f"{i}.png"))
 
-        if self.camera is not None:
-            os.makedirs(camera_path, exist_ok=True)
-            for i, frame in enumerate(self._camera_logs):
-                frame.save(os.path.join(camera_path, f"{i}.png"))
+        print(len(self._logs['gripper']))
+        print(sum(self._logs['gripper']))
 
-        # print(len(self._logs['gripper']))
-        # print(sum(self._logs['gripper']))
-        print()
 
     def enable_spacemouse_control(self, log=False):
+        global is_recording
+
         self.is_gripping = self.gripper.read_once().is_grasped
         self.pose = self.panda.get_pose()
         self.pos = self.pose[:3, 3]
@@ -141,17 +134,14 @@ class FrankaController:
         print(f"Starting SpaceMouse control for {self.max_runtime} seconds...")
         self.panda.start_controller(self.ctrl)
 
-        log and self.enter_logging()
+        if log:
+            self.enter_logging()
         
-        with self.panda.create_context(frequency=1e3, max_runtime=self.max_runtime) as ctx:
-            iteration = 0
+        with self.panda.create_context(frequency=1e2, max_runtime=self.max_runtime) as ctx:
+            print('entering ctx')
             while ctx.ok():
-                # log the gripper / camera time while collecting demonstrations -> check which demonstrations are lost
-
-                # if iteration % 10 == 0: # collect grapper / camera logs every 10 iterations (10 per second)
-                #     self._log_thread()
-
-                iteration += 1
+                self._logs['gripper'].append(self.is_gripping)
+                self._logs['time'].append(time.time_ns())
 
                 mouse = self.spacemouse_controller.read()
                 mouse = mouse * self.mouse_axes_conversion
@@ -170,10 +160,16 @@ class FrankaController:
                 #q = q.clip(constants.JOINT_LIMITS_LOWER, constants.JOINT_LIMITS_UPPER)
 
                 self.ctrl.set_control(self.pos, self.angles)
+                #print(is_recording)
+                if is_recording == 0:
+                    self.panda.stop_controller()
+
+                    break
         
+        if log:
+            self.exit_logging()
+
         self.reset_robot_position()
-        self.panda.stop_controller()
-        log and self.exit_logging()
         time.sleep(2)
 
     def collect_demonstrations(self, quantity = 10):
@@ -181,6 +177,32 @@ class FrankaController:
             print(f"Collecting demonstration {i+1} of {quantity}...")
             self.enable_spacemouse_control(log=True)
 
+
 if __name__ == "__main__":
-    fc = FrankaController(max_runtime=5)
-    fc.collect_demonstrations(1)
+    fc = FrankaController(max_runtime=-1)
+    #fc.collect_demonstrations(1)
+
+    try:
+        camera = Camera()
+
+        def camera_thread_fn():
+            global is_recording, camera, fc
+
+            while True:
+                if is_recording == 2:
+                    fc._camera_logs.append(camera.get_frame())
+                    fc._camera_time.append(time.time_ns())
+                time.sleep(0.001)
+    except:
+        print("Camera not connected.")
+        exit()
+
+    cam_thread = threading.Thread(target=camera_thread_fn)
+    cam_thread.start()
+
+    while True:
+        fc.spacemouse_controller.read()
+        time.sleep(0.001)
+
+        if is_recording:
+            fc.enable_spacemouse_control(log=True)

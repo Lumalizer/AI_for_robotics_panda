@@ -32,7 +32,7 @@ class SpaceMouseController:
         if not success:
             exit()
 
-        self.rate_limit = 100
+        self.rate_limit = 100 # in Hz
         self.angle_conversion_factor = 1
         self.conversion_factor = 0.01
         self.last_read = time.time()
@@ -57,8 +57,8 @@ class SpaceMouseController:
         if abs(yaw)<0.05:
             yaw = 0
 
-        while time.time()-self.last_read < 1/self.rate_limit:
-            time.sleep(0.005)
+        #while time.time()-self.last_read < 1/self.rate_limit:
+        #    time.sleep(0.005)
 
         self.last_read = time.time()
 
