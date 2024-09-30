@@ -12,7 +12,7 @@ kiwisolver==1.4.7
 matplotlib==3.9.2
 numpy==2.1.1
 packaging==24.1
-panda-python @ file:///home/jazzlinux/Downloads/panda_py_0.8.1_libfranka_0.13.3/panda_python-0.8.1%2Blibfranka.0.13.3-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+panda-python @ file:///home/air-realtime/Downloads/panda_python-0.8.1%2Blibfranka.0.13.3-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
 pandas==2.2.3
 pillow==10.4.0
 pycparser==2.22
