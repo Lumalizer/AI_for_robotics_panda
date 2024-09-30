@@ -116,8 +116,11 @@ class FrankaController:
 
         print("Camera frames:" , len(self._camera_logs))
         os.makedirs(camera_path, exist_ok=True)
+        
+        # TODO: this is slow
         for i, frame in enumerate(self._camera_logs):
             frame.save(os.path.join(camera_path, f"{i}.png"))
+            break
 
         print("Gripper frames", len(self._logs['gripper']))
         print("Gripper frames closed", sum(self._logs['gripper']))
@@ -163,7 +166,6 @@ class FrankaController:
                 #print(is_recording)
                 if is_recording == 0:
                     self.panda.stop_controller()
-
                     break
         
         if log:
@@ -192,17 +194,25 @@ if __name__ == "__main__":
                 if is_recording == 2:
                     fc._camera_logs.append(camera.get_frame())
                     fc._camera_time.append(time.time_ns())
-                time.sleep(0.001)
+                time.sleep(0.01)
     except:
         print("Camera not connected.")
         exit()
 
-    cam_thread = threading.Thread(target=camera_thread_fn)
+    cam_thread = threading.Thread(target=camera_thread_fn, daemon=True)
     cam_thread.start()
 
     while True:
-        fc.spacemouse_controller.read()
-        time.sleep(0.001)
+        try:
+            fc.spacemouse_controller.read()
+            time.sleep(0.001)
 
-        if is_recording:
-            fc.enable_spacemouse_control(log=True)
+            if is_recording:
+                fc.enable_spacemouse_control(log=True)
+        except Exception as e:
+            print(f"Error in recording trajectory: {e}")
+            fc.spacemouse_controller.close()
+            time.sleep(1)
+            fc.panda.stop_controller()
+            fc.panda.disable_logging()
+            exit()
