@@ -114,13 +114,13 @@ class FrankaController:
         with open(os.path.join(path, 'trajectory.pkl'), 'wb') as f:
             pickle.dump(self.process_log(), f)
 
-        print(len(self._camera_logs))
+        print("Camera frames:" , len(self._camera_logs))
         os.makedirs(camera_path, exist_ok=True)
         for i, frame in enumerate(self._camera_logs):
             frame.save(os.path.join(camera_path, f"{i}.png"))
 
-        print(len(self._logs['gripper']))
-        print(sum(self._logs['gripper']))
+        print("Gripper frames", len(self._logs['gripper']))
+        print("Gripper frames closed", sum(self._logs['gripper']))
 
 
     def enable_spacemouse_control(self, log=False):
