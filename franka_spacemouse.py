@@ -81,7 +81,7 @@ class FrankaController:
         
         # logging thread
         self._stop_logging.clear()
-        self._logging_thread = threading.Thread(target=self._logging_thread)
+        self._logging_thread = threading.Thread(target=self._log_thread)
         self._logging_thread.start()
         print('logging thread started')
 
@@ -148,8 +148,8 @@ class FrankaController:
             while ctx.ok():
                 # log the gripper / camera time while collecting demonstrations -> check which demonstrations are lost
 
-                if iteration % 10 == 0: # collect grapper / camera logs every 10 iterations (10 per second)
-                    self.log_step()
+                # if iteration % 10 == 0: # collect grapper / camera logs every 10 iterations (10 per second)
+                #     self._log_thread()
 
                 iteration += 1
 
@@ -182,5 +182,5 @@ class FrankaController:
             self.enable_spacemouse_control(log=True)
 
 if __name__ == "__main__":
-    fc = FrankaController(max_runtime=20)
+    fc = FrankaController(max_runtime=5)
     fc.collect_demonstrations(1)
