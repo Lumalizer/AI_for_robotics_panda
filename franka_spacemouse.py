@@ -14,6 +14,7 @@ import os
 import pickle
 import pandas as pd
 from camera import Camera
+import threading 
 
 class FrankaController:
     def __init__(self, conversion_factor=0.002, angle_conversion_factor=0.8, mouse_axes_conversion=SpaceMouseState(1, 1, 1, 1, 1, 1), max_runtime=-1):
@@ -34,6 +35,12 @@ class FrankaController:
         self.rotation_enabled = True
         self.is_gripping = False
         self.max_runtime = max_runtime
+        
+        # threading
+        self._logs = {'gripper': [], 'time': []}
+        self._camera_logs = []
+        self._logging_thread = None
+        self._stop_logging = threading.Event()
 
         self.reset_robot_position()
 
@@ -71,7 +78,15 @@ class FrankaController:
         return [t, np.array(q), np.array(dq), np.array(poses)]
 
     def enter_logging(self):
+        
+        # logging thread
+        self._stop_logging.clear()
+        self._logging_thread = threading.Thread(target=self._logging_thread)
+        self._logging_thread.start()
+        print('logging thread started')
+
         # logs directly from libfranka
+        print('enabling libfranka logging')
         seconds_to_log = (self.max_runtime if self.max_runtime > 0 else 10)
         self.panda.enable_logging(buffer_size=seconds_to_log * 1000)
 
@@ -79,12 +94,21 @@ class FrankaController:
         self._logs = {'gripper': [], 'time': []}
         self._camera_logs = []
 
+    def _log_thread(self):
+        while not self._stop_logging.is_set():
+            self.log_step()
+            time.sleep(0.01)
+
     def log_step(self):
         self._logs['gripper'].append(self.is_gripping)
         self._logs['time'].append(time.time_ns())
         self._camera_logs.append(self.camera.get_frame())
 
     def exit_logging(self):
+        self._stop_logging.set()
+        if self._logging_thread is not None:
+            self._logging_thread.join()
+
         date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         path = os.path.join("logs", "trajectory_"+str(date))
         camera_path = os.path.join(path, "camera")
@@ -104,9 +128,9 @@ class FrankaController:
             for i, frame in enumerate(self._camera_logs):
                 frame.save(os.path.join(camera_path, f"{i}.png"))
 
-        print(len(self._logs['gripper']))
-        print(sum(self._logs['gripper']))
-
+        # print(len(self._logs['gripper']))
+        # print(sum(self._logs['gripper']))
+        print()
 
     def enable_spacemouse_control(self, log=False):
         self.is_gripping = self.gripper.read_once().is_grasped
@@ -122,6 +146,8 @@ class FrankaController:
         with self.panda.create_context(frequency=1e3, max_runtime=self.max_runtime) as ctx:
             iteration = 0
             while ctx.ok():
+                # log the gripper / camera time while collecting demonstrations -> check which demonstrations are lost
+
                 if iteration % 10 == 0: # collect grapper / camera logs every 10 iterations (10 per second)
                     self.log_step()
 
@@ -148,7 +174,7 @@ class FrankaController:
         self.reset_robot_position()
         self.panda.stop_controller()
         log and self.exit_logging()
-        time.sleep(1)
+        time.sleep(2)
 
     def collect_demonstrations(self, quantity = 10):
         for i in range(quantity):
@@ -156,5 +182,5 @@ class FrankaController:
             self.enable_spacemouse_control(log=True)
 
 if __name__ == "__main__":
-    fc = FrankaController(max_runtime=10)
+    fc = FrankaController(max_runtime=20)
     fc.collect_demonstrations(1)

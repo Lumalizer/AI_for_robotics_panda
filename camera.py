@@ -9,6 +9,7 @@ class Camera:
         self.pipeline.start()
 
     def get_frame(self):
+           
         frames = self.pipeline.wait_for_frames()
         rgb = frames.get_color_frame()
 
