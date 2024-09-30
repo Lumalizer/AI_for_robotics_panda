@@ -1,0 +1,7 @@
+# mp4 file with the camera frames
+# could take avg in the timestamps to allign the indices  (resampling)
+# save data at high rate then for the traiining set for fine tuning we can resample to track wgar we want  
+# keyboard control - left/right mouse to use the gripper dynamically - move gripper to close it a little bit 
+## separate thread? (useful in the future)
+# start collecting trajectories 
+# combine the wrist and base cameras for octo / vla is only external 
