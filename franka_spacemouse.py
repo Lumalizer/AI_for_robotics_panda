@@ -13,7 +13,8 @@ import os
 import pickle
 import pandas as pd
 import threading
-from camera import Camera     
+from camera import Camera
+import cv2
 
 
 is_recording = 0
@@ -117,10 +118,17 @@ class FrankaController:
         print("Camera frames:" , len(self._camera_logs))
         os.makedirs(camera_path, exist_ok=True)
         
-        # TODO: this is slow
+        # write mp4 video
+        frame_height, frame_width = self._camera_logs[0].shape[:2]
+        video_path = os.path.join(camera_path, "video.mp4")
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec
+        out = cv2.VideoWriter(video_path, fourcc, 30.0, (frame_width, frame_height))
+
         for i, frame in enumerate(self._camera_logs):
-            frame.save(os.path.join(camera_path, f"{i}.png"))
-            break
+            out.write(frame)
+            
+        out.release()
+
 
         print("Gripper frames", len(self._logs['gripper']))
         print("Gripper frames closed", sum(self._logs['gripper']))
@@ -167,12 +175,15 @@ class FrankaController:
                 if is_recording == 0:
                     self.panda.stop_controller()
                     break
+                
+        self.panda.stop_controller()
         
         if log:
             self.exit_logging()
 
         self.reset_robot_position()
-        time.sleep(2)
+        
+        is_recording = 0
 
     def collect_demonstrations(self, quantity = 10):
         for i in range(quantity):
@@ -194,7 +205,7 @@ if __name__ == "__main__":
                 if is_recording == 2:
                     fc._camera_logs.append(camera.get_frame())
                     fc._camera_time.append(time.time_ns())
-                time.sleep(0.01)
+                time.sleep(0.001)
     except:
         print("Camera not connected.")
         exit()
@@ -215,4 +226,5 @@ if __name__ == "__main__":
             time.sleep(1)
             fc.panda.stop_controller()
             fc.panda.disable_logging()
-            exit()
+            
+            raise e
