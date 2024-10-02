@@ -2,7 +2,6 @@ from franka_spacemouse import FrankaController
 import time
 import datetime
 import os
-import pickle
 import cv2
 import numpy as np
 import panda_py
@@ -47,9 +46,8 @@ class Logger:
             date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             path = os.path.join("logs", "trajectory_"+str(date))
             os.makedirs(path, exist_ok=True)
-
-            with open(os.path.join(path, 'trajectory.pkl'), 'wb') as f:
-                pickle.dump(logs, f)
+            
+            np.save(os.path.join(path, 'trajectory.npy'), logs)
 
             self.write_mp4(path)
             
@@ -110,7 +108,7 @@ class Logger:
         assert(len(franka_t) == len(franka_q) == len(franka_dq) == len(franka_pose) == len(gripper_t) == len(gripper_status) == len(camera_frame_t))
         
         data = []
-        
+                
         for i in range(len(franka_t)-1):
             data.append({'franka_t':franka_t[i], 'franka_q':franka_q[i], 'franka_dq':franka_dq[i], 'franka_pose':franka_pose[i], 'gripper_t':gripper_t[i], 'gripper_status':gripper_status[i], 'camera_frame_t':camera_frame_t[i]})
         

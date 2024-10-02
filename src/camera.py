@@ -28,9 +28,9 @@ class Camera:
         rgb_data = rgb.as_frame().get_data()
         
         # need to copy to avoid filling the buffer and getting duplicate frames
-        np_image = np.asanyarray(rgb_data, copy=True)
+        np_image = np.asanyarray(rgb_data)
 
-        return np_image
+        return np_image.copy()
     
     def stop(self):
         self.pipeline.stop()
