@@ -41,11 +41,9 @@ class FrankaController:
 
     def button_callback(self, state, buttons):
         if buttons[0]:  # left button
-            print("Button 1 pressed")
             self.toggle_recording()
         
         if buttons[1]:  # right button
-            print("Button 2 pressed")
             self.toggle_gripper() 
 
     def toggle_gripper(self):
@@ -61,7 +59,7 @@ class FrankaController:
             self.is_recording.clear()
         else:
             self.is_recording.set()
-            print('Recording trajectory...') # release gripper
+            print('Recording trajectory...')
 
     def camera_thread_fn(self):
         while True:
@@ -93,7 +91,6 @@ class FrankaController:
             self.logger.enter_logging()
         
         with self.panda.create_context(frequency=1e2, max_runtime=self.max_runtime) as ctx:
-            print('entering ctx')
             while ctx.ok():
                 self.logger._logs['gripper'].append(self.is_gripping)
                 self.logger._logs['time'].append(time.time_ns())
@@ -120,28 +117,36 @@ class FrankaController:
             self.logger.exit_logging()
 
         self.reset_robot_position()
-        time.sleep(2)
             
-    def collect_demonstrations(self):
-        while True:
+    def collect_demonstrations(self, amount=10):
+        print(f"Press left button on the space mouse to start or stop recording a new trajectory. ({amount} remaining)")
+        
+        while amount:
             try:
                 self.spacemouse_controller.read()
                 time.sleep(0.001)
 
                 if self.is_recording.is_set():
                     self.enable_spacemouse_control()
+                    amount -= 1
+                    
+                    print(f"Press left button on the space mouse to start or stop recording a new trajectory. ({amount} remaining)")
+                    
             except Exception as e:
                 print(f"Error in recording trajectory: {e}")
-                self.spacemouse_controller.close()
-                time.sleep(1)
+                self.reset_robot_position()
                 self.panda.stop_controller()
                 self.logger.exit_logging(save=False)
                 
-                raise e
+                if type(e) == RuntimeError:
+                    print("attempting to restart...\n\n")
+                    self.toggle_recording()
+                else:
+                    raise e
 
 
 if __name__ == "__main__":
     from logger import Logger
     
-    fc = FrankaController(max_runtime=-1)
+    fc = FrankaController()
     fc.collect_demonstrations()

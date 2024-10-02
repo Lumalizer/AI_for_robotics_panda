@@ -8,9 +8,10 @@ import numpy as np
 import panda_py
 
 class Logger:
-    def __init__(self, fc: FrankaController) -> None:
+    def __init__(self, fc: FrankaController, task_description_required=True) -> None:
         self.fc = fc
         
+        self.task_description_required = task_description_required
         self._camera_logs = []
         self._camera_time = []
         self._logs = {'gripper': [0], 'time': [time.time_ns()]}
@@ -35,21 +36,22 @@ class Logger:
         self.fc.panda.disable_logging()
         
         if save:
-            print('Trajectory recorded!')
+            logs = self.process_log()
+            
+            if self.task_description_required:
+                logs['task_description'] = input("Enter task description such as 'pick up the red cube',  or press enter to leave blank: ")
+            
             date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             path = os.path.join("logs", "trajectory_"+str(date))
             camera_path = os.path.join(path, "camera")
-
             os.makedirs(camera_path, exist_ok=True)
 
             with open(os.path.join(path, 'trajectory.pkl'), 'wb') as f:
-                pickle.dump(self.process_log(), f)
+                pickle.dump(logs, f)
 
             self.write_mp4(camera_path)
             
-            print("Camera frames:" , len(self._camera_logs))
-            print("Gripper frames", len(self._logs['gripper']))
-            print("Gripper frames closed", sum(self._logs['gripper']))
+            print(f'Trajectory saved to {path}. Camera frames: {len(self._camera_logs)}, Camera fps (assuming 100 gripper logs/s): {len(self._camera_logs) / (len(self._logs["gripper"]) / 100)} Gripper frames: {len(self._logs["gripper"])} Gripper frames closed: {sum(self._logs["gripper"])}\n')
 
     def write_mp4(self, camera_path):
         frame_height, frame_width = self._camera_logs[0].shape[:2]
@@ -81,5 +83,6 @@ class Logger:
         cam_time = (cam_time - gripper_time[0]) / 1e9
         gripper_time = (gripper_time - gripper_time[0]) / 1e9
 
-        # print(np.array(q).shape, np.array(dq).shape, np.array(poses).shape)
-        return {'franka_t':t, 'franka_q':np.array(q), 'franka_dq':np.array(dq), 'franka_pose':np.array(poses), 'gripper_t':gripper_time, 'gripper_status':gripper, 'camera_frame_t':cam_time}
+        data = {'franka_t':t, 'franka_q':np.array(q), 'franka_dq':np.array(dq), 'franka_pose':np.array(poses), 'gripper_t':gripper_time, 'gripper_status':gripper, 'camera_frame_t':cam_time}
+        
+        return data
