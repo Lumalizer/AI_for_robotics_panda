@@ -140,7 +140,8 @@ class FrankaController:
                 
                 if type(e) == RuntimeError:
                     print("attempting to restart...\n\n")
-                    self.toggle_recording()
+                    print(f"Press left button on the space mouse to start or stop recording a new trajectory. ({amount} remaining)")
+                    self.is_recording.clear()
                 else:
                     raise e
 

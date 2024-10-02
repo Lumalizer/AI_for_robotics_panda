@@ -39,17 +39,19 @@ class Logger:
             logs = self.process_log()
             
             if self.task_description_required:
-                logs['task_description'] = input("Enter task description such as 'pick up the red cube',  or press enter to leave blank: ")
+                task_desc = input("Enter task description such as 'pick up the red cube',  or press enter to leave blank: ")
+                
+                for log in logs:
+                    log['task_description'] = task_desc
             
             date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             path = os.path.join("logs", "trajectory_"+str(date))
-            camera_path = os.path.join(path, "camera")
-            os.makedirs(camera_path, exist_ok=True)
+            os.makedirs(path, exist_ok=True)
 
             with open(os.path.join(path, 'trajectory.pkl'), 'wb') as f:
                 pickle.dump(logs, f)
 
-            self.write_mp4(camera_path)
+            self.write_mp4(path)
             
             print(f'Trajectory saved to {path}. Camera frames: {len(self._camera_logs)}, Camera fps (assuming 100 gripper logs/s): {len(self._camera_logs) / (len(self._logs["gripper"]) / 100)} Gripper frames: {len(self._logs["gripper"])} Gripper frames closed: {sum(self._logs["gripper"])}\n')
 
@@ -103,11 +105,13 @@ class Logger:
         # Now we have all the data we need, timestamp-aligned and sub-sampled at the same frame rate as the camera (ideally, 30Hz, if data collected through
         # usb-3 port)
 
-        # e.g., a dataset for diffusion policy may have inputs/state as (img{t}, franka_q{t}, franka_dq{t} or img{t}, franka_pose{t}) and output as (franka_pose {t+1 : }, gripper_status {t+1 : })        
+        # e.g., a dataset for diffusion policy may have inputs/state as (img{t}, franka_q{t}, franka_dq{t} or img{t}, franka_pose{t}) and output as (franka_pose {t+1 : }, gripper_status {t+1 : })
         
-        data = {'franka_t':franka_t, 'franka_q':np.array(franka_q), 'franka_dq':np.array(franka_dq), 'franka_pose':np.array(franka_pose), 'gripper_t':gripper_t, 'gripper_status':gripper_status, 'camera_frame_t':camera_frame_t}
+        assert(len(franka_t) == len(franka_q) == len(franka_dq) == len(franka_pose) == len(gripper_t) == len(gripper_status) == len(camera_frame_t))
         
-        for k, v in data.items():
-            print(k, v.shape)
+        data = []
+        
+        for i in range(len(franka_t)-1):
+            data.append({'franka_t':franka_t[i], 'franka_q':franka_q[i], 'franka_dq':franka_dq[i], 'franka_pose':franka_pose[i], 'gripper_t':gripper_t[i], 'gripper_status':gripper_status[i], 'camera_frame_t':camera_frame_t[i]})
         
         return data
