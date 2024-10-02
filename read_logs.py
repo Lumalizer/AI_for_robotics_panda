@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-path = "logs/trajectory_2024-09-27_17-02-19"
+path = "logs/trajectory_2024-10-02_15-02-26"
 
 data = pickle.load(open(os.path.join(path, "trajectory.pkl"), "rb"))
 
@@ -15,7 +15,6 @@ franka_pose = data["franka_pose"]
 gripper_t = data["gripper_t"]
 gripper_status = data["gripper_status"]
 camera_frame_t = data["camera_frame_t"]
-
 
 # now we re-sample gripper (gripper_status / gripper_t) and franka_* to camera_frame_t (i.e., 30 Hz) by looking for the indices whose timestamp is closest to the camera_frame_t
 franka_resampled_indices = np.searchsorted(franka_t, camera_frame_t)
@@ -54,6 +53,6 @@ ax.set_xlim([0, 0.9])
 ax.set_ylim([-0.5, 0.5])
 ax.set_zlim([0, 0.8])
 
-plt.show()
+# plt.show()
 
 
