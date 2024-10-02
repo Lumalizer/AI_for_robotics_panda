@@ -67,22 +67,47 @@ class Logger:
     def process_log(self):
         logs = self.fc.panda.get_log()
 
-        # t = np.squeeze(t)
-    
-        q = logs['q']
-        dq = logs['dq']
-        t = np.array(logs['time'])
-        t = (t-t[0]) / 1e3
-        poses = [panda_py.fk(qq) for qq in q]
+        franka_q = np.array(logs['q'])
+        franka_dq = np.array(logs['dq'])
+        
+        franka_t = np.array(logs['time'])
+        franka_t = (franka_t-franka_t[0]) / 1e3
+        franka_t = np.squeeze(franka_t)
+        franka_pose = np.array([panda_py.fk(qq) for qq in franka_q])
 
-        gripper = np.array(self._logs['gripper'])
-        gripper_time = np.array(self._logs['time'])
+        gripper_status = np.array(self._logs['gripper'])
+        gripper_t = np.array(self._logs['time'])
+        gripper_t = (gripper_t - gripper_t[0]) / 1e9
 
-        cam_time = np.array(self._camera_time)
- 
-        cam_time = (cam_time - gripper_time[0]) / 1e9
-        gripper_time = (gripper_time - gripper_time[0]) / 1e9
+        camera_frame_t = np.array(self._camera_time)
+        camera_frame_t = (camera_frame_t - self._logs['time'][0]) / 1e9
+        
+        # now we re-sample gripper (gripper_status / gripper_t) and franka_* to camera_frame_t (i.e., 30 Hz) by looking for the indices whose timestamp is closest to the camera_frame_t
+        franka_resampled_indices = np.searchsorted(franka_t, camera_frame_t)
+        gripper_resampled_indices = np.searchsorted(gripper_t, camera_frame_t)
 
-        data = {'franka_t':t, 'franka_q':np.array(q), 'franka_dq':np.array(dq), 'franka_pose':np.array(poses), 'gripper_t':gripper_time, 'gripper_status':gripper, 'camera_frame_t':cam_time}
+        if franka_resampled_indices[-1] == len(franka_t):
+            franka_resampled_indices[-1] = len(franka_t) - 1
+        if gripper_resampled_indices[-1] == len(gripper_t):
+            gripper_resampled_indices[-1] = len(gripper_t) - 1
+
+        franka_t = franka_t[franka_resampled_indices]
+        franka_q = franka_q[franka_resampled_indices]
+        franka_dq = franka_dq[franka_resampled_indices]
+        franka_pose = franka_pose[franka_resampled_indices]
+
+        gripper_t = gripper_t[gripper_resampled_indices]
+        gripper_status = gripper_status[gripper_resampled_indices]
+
+
+        # Now we have all the data we need, timestamp-aligned and sub-sampled at the same frame rate as the camera (ideally, 30Hz, if data collected through
+        # usb-3 port)
+
+        # e.g., a dataset for diffusion policy may have inputs/state as (img{t}, franka_q{t}, franka_dq{t} or img{t}, franka_pose{t}) and output as (franka_pose {t+1 : }, gripper_status {t+1 : })        
+        
+        data = {'franka_t':franka_t, 'franka_q':np.array(franka_q), 'franka_dq':np.array(franka_dq), 'franka_pose':np.array(franka_pose), 'gripper_t':gripper_t, 'gripper_status':gripper_status, 'camera_frame_t':camera_frame_t}
+        
+        for k, v in data.items():
+            print(k, v.shape)
         
         return data
