@@ -27,14 +27,14 @@ def button_callback(state, buttons):
     print(f"State: {state}, Buttons: {buttons}")
 
 class SpaceMouseController:
-    def __init__(self, button_callback=button_callback):
+    def __init__(self, button_callback=button_callback, conversion_factor=0.003, angle_conversion_factor=0.4, mouse_axes_conversion=SpaceMouseState(1, 1, 1, 1, 1, 1)):
         success = pyspacemouse.open(button_callback=button_callback)
         if not success:
             exit()
 
-        self.rate_limit = 100 # in Hz
-        self.angle_conversion_factor = 1
-        self.conversion_factor = 0.01
+        self.conversion_factor = conversion_factor
+        self.angle_conversion_factor = angle_conversion_factor
+        self.mouse_axes_conversion = mouse_axes_conversion
         self.last_read = time.time()
 
     def read(self) -> SpaceMouseState:
@@ -56,13 +56,20 @@ class SpaceMouseController:
             pitch = 0
         if abs(yaw)<0.05:
             yaw = 0
-
-        #while time.time()-self.last_read < 1/self.rate_limit:
-        #    time.sleep(0.005)
+            
+        x = x * self.conversion_factor
+        y = y * self.conversion_factor
+        z = z * self.conversion_factor
+        
+        roll = roll * self.angle_conversion_factor
+        pitch = pitch * self.angle_conversion_factor
+        yaw = yaw * self.angle_conversion_factor
 
         self.last_read = time.time()
+        
+        state = SpaceMouseState(x, y, z, roll, pitch, yaw)
 
-        return SpaceMouseState(x, y, z, roll, pitch, yaw)
+        return state*self.mouse_axes_conversion
 
 
     def close(self):
