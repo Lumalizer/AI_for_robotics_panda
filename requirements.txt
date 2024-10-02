@@ -11,6 +11,7 @@ joblib==1.4.2
 kiwisolver==1.4.7
 matplotlib==3.9.2
 numpy==2.1.1
+opencv-python==4.10.0.84
 packaging==24.1
 panda-python @ file:///home/air-realtime/Downloads/panda_python-0.8.1%2Blibfranka.0.13.3-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
 pandas==2.2.3
