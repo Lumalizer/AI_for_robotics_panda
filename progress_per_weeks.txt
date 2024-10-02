@@ -16,6 +16,10 @@ w2
 
 w3
 - logging first trajectories -> using the proper data format suited for the models (RLDS format)
+    Examples for RLDS format with franka and panda
+      https://www.tensorflow.org/datasets/catalog/robosuite_panda_pick_place_can
+      https://www.tensorflow.org/datasets/catalog/cmu_franka_exploration_dataset_converted_externally_to_rlds
+      https://www.tensorflow.org/datasets/catalog/nyu_franka_play_dataset_converted_externally_to_rlds
 - mp4 file with the camera frames
 - could take avg in the timestamps to allign the indices  (resampling)
 - save data at high rate then for the traiining set for fine tuning we can resample to track wgar we want  
