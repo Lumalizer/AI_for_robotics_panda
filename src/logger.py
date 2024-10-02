@@ -115,3 +115,21 @@ class Logger:
             data.append({'franka_t':franka_t[i], 'franka_q':franka_q[i], 'franka_dq':franka_dq[i], 'franka_pose':franka_pose[i], 'gripper_t':gripper_t[i], 'gripper_status':gripper_status[i], 'camera_frame_t':camera_frame_t[i]})
         
         return data
+
+# x = franka_pose[:, 0, 3]
+# y = franka_pose[:, 1, 3]
+# z = franka_pose[:, 2, 3]
+
+# # plot traj in 3d
+# fig = plt.figure()
+# ax = fig.add_subplot(111, projection='3d')
+# ax.plot(x, y, z)
+# ax.scatter(x,y,z)
+# # add limits
+# ax.set_xlim([0, 0.9])
+# ax.set_ylim([-0.5, 0.5])
+# ax.set_zlim([0, 0.8])
+
+# # plt.show()
+
+
