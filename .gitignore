@@ -1,5 +1,6 @@
 # our ignores
 logs
+examples
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
