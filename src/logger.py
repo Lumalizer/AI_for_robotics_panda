@@ -44,7 +44,7 @@ class Logger:
                     log['task_description'] = task_desc
             
             date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            path = os.path.join("logs", "trajectory_"+str(date))
+            path = os.path.join("..", "logs", "trajectory_"+str(date))
             os.makedirs(path, exist_ok=True)
             
             resize_img = [cv2.resize(frame, (64, 64)) for frame in self._camera_logs]
@@ -59,7 +59,7 @@ class Logger:
             
             print(f'Trajectory saved to {path}. Camera frames: {len(self._camera_logs)}, Camera fps (assuming 100 gripper logs/s): {len(self._camera_logs) / (len(self._logs["gripper"]) / 100)} Gripper frames: {len(self._logs["gripper"])} Gripper frames closed: {sum(self._logs["gripper"])}\n')
 
-    def write_mp4(self, camera_path):
+    def write_mp4(self, camera_path): # might be distorting the colors of the frames
         frame_height, frame_width = self._camera_logs[0].shape[:2]
         video_path = os.path.join(camera_path, "video.mp4")
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec
