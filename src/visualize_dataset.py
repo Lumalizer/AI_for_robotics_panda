@@ -39,6 +39,9 @@ for i, episode in enumerate(ds.take(5)):
     images = []
     for step in episode['steps']:
         images.append(step['observation']['image'].numpy())
+    
+    
+     
     image_strip = np.concatenate(images[::4], axis=1)
     caption = step['language_instruction'].numpy().decode() + ' (temp. downsampled 4x)'
 
@@ -49,7 +52,7 @@ for i, episode in enumerate(ds.take(5)):
         plt.imshow(image_strip)
         plt.title(caption)
 
-# visualize action and state statistics
+# visualize action and state statistics 
 actions, states = [], []
 for episode in tqdm.tqdm(ds.take(500)):
     for step in episode['steps']:
@@ -79,6 +82,6 @@ vis_stats(actions, action_mean, 'action_stats')
 vis_stats(states, state_mean, 'state_stats')
 
 if not render_wandb:
-    plt.show()
+    plt.savefig(f'{dataset_name}_visualization.png')
 
 
