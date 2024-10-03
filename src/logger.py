@@ -47,8 +47,14 @@ class Logger:
             path = os.path.join("logs", "trajectory_"+str(date))
             os.makedirs(path, exist_ok=True)
             
+            resize_img = [cv2.resize(frame, (64, 64)) for frame in self._camera_logs]
+            # save each frame in the trajectory.npy as a dictionary with a key image
+            for i, frame in enumerate(resize_img):
+                # np.save(os.path.join(path, f'image_{i}.npy'), frame)
+                logs[i]['image'] = frame
+            
             np.save(os.path.join(path, 'trajectory.npy'), logs)
-
+            
             self.write_mp4(path)
             
             print(f'Trajectory saved to {path}. Camera frames: {len(self._camera_logs)}, Camera fps (assuming 100 gripper logs/s): {len(self._camera_logs) / (len(self._logs["gripper"]) / 100)} Gripper frames: {len(self._logs["gripper"])} Gripper frames closed: {sum(self._logs["gripper"])}\n')
@@ -102,8 +108,6 @@ class Logger:
 
         # Now we have all the data we need, timestamp-aligned and sub-sampled at the same frame rate as the camera (ideally, 30Hz, if data collected through
         # usb-3 port)
-
-        # e.g., a dataset for diffusion policy may have inputs/state as (img{t}, franka_q{t}, franka_dq{t} or img{t}, franka_pose{t}) and output as (franka_pose {t+1 : }, gripper_status {t+1 : })
         
         assert(len(franka_t) == len(franka_q) == len(franka_dq) == len(franka_pose) == len(gripper_t) == len(gripper_status) == len(camera_frame_t))
         
@@ -113,6 +117,14 @@ class Logger:
             data.append({'franka_t':franka_t[i], 'franka_q':franka_q[i], 'franka_dq':franka_dq[i], 'franka_pose':franka_pose[i], 'gripper_t':gripper_t[i], 'gripper_status':gripper_status[i], 'camera_frame_t':camera_frame_t[i]})
         
         return data
+
+
+
+
+
+
+
+# e.g., a dataset for diffusion policy may have inputs/state as (img{t}, franka_q{t}, franka_dq{t} or img{t}, franka_pose{t}) and output as (franka_pose {t+1 : }, gripper_status {t+1 : })
 
 # x = franka_pose[:, 0, 3]
 # y = franka_pose[:, 1, 3]

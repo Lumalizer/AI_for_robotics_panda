@@ -6,7 +6,7 @@ import tensorflow_datasets as tfds
 import tensorflow_hub as hub
 
 
-class TryRldsDataset(tfds.core.GeneratorBasedBuilder):
+class AirNet(tfds.core.GeneratorBasedBuilder):
     """DatasetBuilder for example dataset."""
 
     VERSION = tfds.core.Version('1.0.0')
@@ -40,7 +40,7 @@ class TryRldsDataset(tfds.core.GeneratorBasedBuilder):
                             shape=(10,),
                             dtype=np.float32,
                             doc='Robot state, consists of [7x robot joint angles, '
-                                '2x gripper position, 1x door opening angle].',
+                                '2x gripper position, 1x door opening angle].', # TODO: ask giacomo for door opening angle
                         )
                     }),
                     'action': tfds.features.Tensor(
@@ -90,7 +90,7 @@ class TryRldsDataset(tfds.core.GeneratorBasedBuilder):
         """Define data splits."""
         return {
             'train': self._generate_examples(path='data/train/episode_*.npy'),
-            'val': self._generate_examples(path='data/val/episode_*.npy'),
+            # 'val': self._generate_examples(path='data/val/episode_*.npy'),
         }
 
     def _generate_examples(self, path) -> Iterator[Tuple[str, Any]]:
@@ -103,27 +103,28 @@ class TryRldsDataset(tfds.core.GeneratorBasedBuilder):
             # assemble episode --> here we're assuming demos so we set reward to 1 at the end
             episode = []
             for i, step in enumerate(data):
+                
                 # compute Kona language embedding
                 language_embedding = self._embed([step['task_description']])[0].numpy()
                 
                 # TODO: fix
                 # create a dummy image array for now
-                dummy_image = np.zeros((64, 64, 3), dtype=np.uint8)
-                
-                # TODO: fix
-                # add some dummies for now
+                # dummy_image = np.zeros((64, 64, 3), dtype=np.uint8)
+        
                 grips = np.expand_dims(step['gripper_status'], axis=0)
-                state = np.concatenate([step['franka_q'], grips, grips, grips]).astype(np.float32)
-
+                grips = np.concatenate([grips, grips, [0]]) # placeholder for door opening angle and 2nd gripper position
+                state = np.concatenate([step['franka_q'], grips]).astype(np.float32)
+                action = np.concatenate([step['franka_dq'], grips]).astype(np.float32) # placeholder for terminate episode and gripper velocities
+                
                 episode.append({
                     'observation': {
-                        'image': dummy_image,
+                        'image': step['image'],
                         # 'wrist_image': step['wrist_image'],
                         'state': state, # TODO: fix this with correct info
                     },
-                    'action': state, # TODO: fix this with correct info
+                    'action': action, # TODO: fix this with correct info
                     'discount': 1.0,
-                    'reward': float(i == (len(data) - 1)),
+                    'reward': 1.0 if i == (len(data) - 1) else 0.0,
                     'is_first': i == 0,
                     'is_last': i == (len(data) - 1),
                     'is_terminal': i == (len(data) - 1),
