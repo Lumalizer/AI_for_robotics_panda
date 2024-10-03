@@ -5,7 +5,6 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 import tensorflow_hub as hub
 
-
 class AirNet(tfds.core.GeneratorBasedBuilder):
     """DatasetBuilder for example dataset."""
 
@@ -115,6 +114,12 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
                 grips = np.concatenate([grips, grips, [0]]) # placeholder for door opening angle and 2nd gripper position
                 state = np.concatenate([step['franka_q'], grips]).astype(np.float32)
                 action = np.concatenate([step['franka_dq'], grips]).astype(np.float32) # placeholder for terminate episode and gripper velocities
+                
+                # action space needs to be clipped to the range acceptd by open-x embodiment
+                min_range, max_range = [(-1, -1, -1, -2*np.pi, -2*np.pi, -2*np.pi, -1, 0, 0, 0),
+                         (+1, +1, +1, +2*np.pi, +2*np.pi, +2*np.pi, +1, 1, 0, 0)]
+                
+                action = np.clip(action, min_range, max_range).astype(np.float32)
                 
                 episode.append({
                     'observation': {
