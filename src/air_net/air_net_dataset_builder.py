@@ -5,6 +5,8 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 import tensorflow_hub as hub
 
+import cv2
+
 class AirNet(tfds.core.GeneratorBasedBuilder):
     """DatasetBuilder for example dataset."""
 
@@ -99,18 +101,27 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
         
         def _parse_example(episode_path):
             # load raw data --> this should change for your dataset
-            data = np.load(episode_path, allow_pickle=True)     # this is a list of dicts in our case
-
+            data = np.load(episode_path, allow_pickle=True)  # this is a list of dicts in our case
+            mp4_path = episode_path.replace('.npy', '.mp4')
+            
+            # load mp4 and unpack frames into a np array using cv2
+            
+            cap = cv2.VideoCapture(mp4_path)
+            frames = []
+            while cap.isOpened():
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                frames.append(frame)
+                
+            cap.release()
+            
             # assemble episode --> here we're assuming demos so we set reward to 1 at the end
             episode = []
             for i, step in enumerate(data):
                 
                 # compute Kona language embedding
                 language_embedding = self._embed([step['task_description']])[0].numpy()
-                
-                # TODO: fix
-                # create a dummy image array for now
-                # dummy_image = np.zeros((64, 64, 3), dtype=np.uint8)
         
                 grips = np.expand_dims(step['gripper_status'], axis=0)
                 grips = np.concatenate([grips, grips, [0]]) # placeholder for door opening angle and 2nd gripper position
@@ -118,14 +129,14 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
                 action = np.concatenate([step['franka_dq'], grips]).astype(np.float32) # placeholder for terminate episode and gripper velocities
                 
                 # action space needs to be clipped to the range acceptd by open-x embodiment
-                min_range, max_range = [(-1, -1, -1, -2*np.pi, -2*np.pi, -2*np.pi, -1, 0, 0, 0),
-                         (+1, +1, +1, +2*np.pi, +2*np.pi, +2*np.pi, +1, 1, 0, 0)]
+                # min_range, max_range = [(-1, -1, -1, -2*np.pi, -2*np.pi, -2*np.pi, -1, 0, 0, 0),
+                #          (+1, +1, +1, +2*np.pi, +2*np.pi, +2*np.pi, +1, 1, 0, 0)]
                 
-                action = np.clip(action, min_range, max_range).astype(np.float32)
+                # action = np.clip(action, min_range, max_range).astype(np.float32)
                 
                 episode.append({
                     'observation': {
-                        'image': step['image'],
+                        'image': frames[i],
                         # 'wrist_image': step['wrist_image'],
                         'state': state, # TODO: fix this with correct info
                     },
