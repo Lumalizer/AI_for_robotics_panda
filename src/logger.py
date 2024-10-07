@@ -43,22 +43,31 @@ class Logger:
                 for log in logs:
                     log['task_description'] = task_desc
             
+            ## save the raw data
             date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            path = os.path.join("..", "logs", "trajectory_"+str(date))
-            os.makedirs(path, exist_ok=True)
-            
-            resize_img = [cv2.resize(frame, (64, 64)) for frame in self._camera_logs]
+            raw_path = os.path.join("logs", self.fc.dataset_name, "trajectory_"+str(date))
+            os.makedirs(raw_path, exist_ok=True)
+        
+            resize_img = [cv2.resize(frame, (256, 256)) for frame in self._camera_logs]
             # save each frame in the trajectory.npy as a dictionary with a key image
             for i, frame in enumerate(resize_img):
                 # np.save(os.path.join(path, f'image_{i}.npy'), frame)
-                logs[i]['image'] = frame
+                if i < len(logs):
+                    logs[i]['image'] = frame
             
-            np.save(os.path.join(path, 'trajectory.npy'), logs)
+            np.save(os.path.join(raw_path, 'trajectory.npy'), logs)
+            self.write_mp4(raw_path)
             
-            self.write_mp4(path)
+            ## save data in npy for easy dataset build
+            dataset_path = os.path.join("datasets", self.fc.dataset_name)
+            os.makedirs(dataset_path, exist_ok=True)
+            amount_episodes = len(os.listdir(dataset_path))
+            episode_path = os.path.join(dataset_path, f'episode_{amount_episodes+1}.npy')
+            np.save(episode_path, logs)
             
-            print(f'Trajectory saved to {path}. Camera frames: {len(self._camera_logs)}, Camera fps (assuming 100 gripper logs/s): {len(self._camera_logs) / (len(self._logs["gripper"]) / 100)} Gripper frames: {len(self._logs["gripper"])} Gripper frames closed: {sum(self._logs["gripper"])}\n')
-
+            print(f'Trajectory saved to {raw_path}. Camera frames: {len(self._camera_logs)}, Camera fps (assuming 100 gripper logs/s): {len(self._camera_logs) / (len(self._logs["gripper"]) / 100)} Gripper frames: {len(self._logs["gripper"])} Gripper frames closed: {sum(self._logs["gripper"])}\n')
+            print(f'Episode saved to {dataset_path}', f'episode_{amount_episodes+1}')
+                  
     def write_mp4(self, camera_path): # might be distorting the colors of the frames
         frame_height, frame_width = self._camera_logs[0].shape[:2]
         video_path = os.path.join(camera_path, "video.mp4")
