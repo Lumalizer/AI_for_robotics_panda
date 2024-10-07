@@ -24,7 +24,7 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
                 'steps': tfds.features.Dataset({
                     'observation': tfds.features.FeaturesDict({
                         'image': tfds.features.Image(
-                            shape=(64, 64, 3),
+                            shape=(480, 640, 3),
                             dtype=np.uint8,
                             encoding_format='png',
                             doc='Main camera RGB observation.',
@@ -87,14 +87,16 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
 
     def _split_generators(self, dl_manager: tfds.download.DownloadManager):
         """Define data splits."""
+        
         return {
-            'train': self._generate_examples(path='data/train/episode_*.npy'),
+            # change the path to match the datasets subfolder
+            'train': self._generate_examples(path='../../datasets/test_franka_ds/episode_*.npy'),
             # 'val': self._generate_examples(path='data/val/episode_*.npy'),
         }
 
     def _generate_examples(self, path) -> Iterator[Tuple[str, Any]]:
         """Generator of examples for each split."""
-
+        
         def _parse_example(episode_path):
             # load raw data --> this should change for your dataset
             data = np.load(episode_path, allow_pickle=True)     # this is a list of dicts in our case
