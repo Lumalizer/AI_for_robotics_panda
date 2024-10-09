@@ -38,10 +38,10 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
                         #     doc='Wrist camera RGB observation.',
                         # ),
                         'state': tfds.features.Tensor(
-                            shape=(10,),
+                            shape=(9,),
                             dtype=np.float32,
                             doc='Robot state, consists of [7x robot joint angles, '
-                                '2x gripper position, 1x door opening angle].', # TODO: ask giacomo for door opening angle
+                                '2x gripper position].', 
                         )
                     }),
                     'action': tfds.features.Tensor(
@@ -92,6 +92,7 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
         
         return {
             # change the path to match the datasets subfolder
+            
             'train': self._generate_examples(path='../../datasets/test_franka_ds/episode_*.npy'),
             # 'val': self._generate_examples(path='data/val/episode_*.npy'),
         }
@@ -100,11 +101,11 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
         """Generator of examples for each split."""
         
         def _parse_example(episode_path):
-            # load raw data --> this should change for your dataset
-            data = np.load(episode_path, allow_pickle=True)  # this is a list of dicts in our case
+            
+            data = np.load(episode_path, allow_pickle=True)  # list of dicts in our case
             mp4_path = episode_path.replace('.npy', '.mp4')
             
-            # load mp4 and unpack frames into a np array using cv2
+            # load mp4 and unpack frames into a np array using cv2 tin order to save up on space
             
             cap = cv2.VideoCapture(mp4_path)
             frames = []
@@ -117,6 +118,7 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
             cap.release()
             
             # assemble episode --> here we're assuming demos so we set reward to 1 at the end
+            
             episode = []
             for i, step in enumerate(data):
                 
@@ -124,23 +126,19 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
                 language_embedding = self._embed([step['task_description']])[0].numpy()
         
                 grips = np.expand_dims(step['gripper_status'], axis=0)
-                grips = np.concatenate([grips, grips, [0]]) # placeholder for door opening angle and 2nd gripper position
+                grips = np.concatenate([grips, grips]) 
                 state = np.concatenate([step['franka_q'], grips]).astype(np.float32)
-                action = np.concatenate([step['franka_dq'], grips]).astype(np.float32) # placeholder for terminate episode and gripper velocities
                 
-                # action space needs to be clipped to the range acceptd by open-x embodiment
-                # min_range, max_range = [(-1, -1, -1, -2*np.pi, -2*np.pi, -2*np.pi, -1, 0, 0, 0),
-                #          (+1, +1, +1, +2*np.pi, +2*np.pi, +2*np.pi, +1, 1, 0, 0)]
-                
-                # action = np.clip(action, min_range, max_range).astype(np.float32)
+                terminate_action = np.array([True if i == (len(data) - 1) else False], dtype=np.float32)
+                action = np.concatenate([step['franka_dq'], grips, terminate_action]).astype(np.float32)
                 
                 episode.append({
                     'observation': {
                         'image': frames[i],
                         # 'wrist_image': step['wrist_image'],
-                        'state': state, # TODO: fix this with correct info
+                        'state': state, 
                     },
-                    'action': action, # TODO: fix this with correct info
+                    'action': action,
                     'discount': 1.0,
                     'reward': 1.0 if i == (len(data) - 1) else 0.0,
                     'is_first': i == 0,
