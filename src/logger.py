@@ -64,7 +64,8 @@ class Logger:
         out = cv2.VideoWriter(camera_path, fourcc, 30.0, (frame_width, frame_height))
 
         for frame in self._camera_logs:
-            out.write(frame)
+            bgr_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            out.write(bgr_frame)
             
         out.release()
         
