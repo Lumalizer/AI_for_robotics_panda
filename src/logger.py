@@ -45,7 +45,7 @@ class Logger:
             
             # date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             
-            dataset_path = os.path.join("datasets", self.fc.dataset_name)
+            dataset_path = os.path.join('..', "datasets", self.fc.dataset_name)
             os.makedirs(dataset_path, exist_ok=True)
             
             amount_episodes = len(os.listdir(dataset_path)) // 2
