@@ -31,8 +31,8 @@ w3
 
 w4 
 - rlds format check for the data - make sure that all of the  data formatting requirements for fine tuning are completed 
-- finetuning simple octo on the recorded trajectories 
+- finetuning octo-small on the collected trajectories 
 - using the university clusters 
 - rlds data format checks for submission to the open-x embodiment in the future - once the data is functioning for finetuning the models 
     - will be necessary to collect more high quality data in novel environments along with a variety of tasks 
-- folder with subfolders with trajectories 
+- folder with subfolders with trajectories, no longer colelcting raw data 

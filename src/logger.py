@@ -45,10 +45,10 @@ class Logger:
             
             # date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             
-            dataset_path = os.path.join("..", "..", "datasets", self.fc.dataset_name)
+            dataset_path = os.path.join("datasets", self.fc.dataset_name)
             os.makedirs(dataset_path, exist_ok=True)
             
-            amount_episodes = len(os.listdir(dataset_path))
+            amount_episodes = len(os.listdir(dataset_path)) // 2
             episode_path = os.path.join(dataset_path, f'episode_{amount_episodes+1}.npy')
             mp4_path = os.path.join(dataset_path, f'episode_{amount_episodes+1}.mp4')
             
@@ -56,10 +56,11 @@ class Logger:
             self.write_mp4(mp4_path)
             
             print(f'Trajectory saved to {dataset_path}. Camera frames: {len(self._camera_logs)}, Camera fps (assuming 100 gripper logs/s): {len(self._camera_logs) / (len(self._logs["gripper"]) / 100)} Gripper frames: {len(self._logs["gripper"])} Gripper frames closed: {sum(self._logs["gripper"])}\n')
-                  
-    def write_mp4(self, camera_path): # might be distorting the colors of the frames
+            print(f'Episode saved to {episode_path}')
+            
+    def write_mp4(self, camera_path): # might be distorting the colors of the frames while creating the mp4
         frame_height, frame_width = self._camera_logs[0].shape[:2]
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')  
         out = cv2.VideoWriter(camera_path, fourcc, 30.0, (frame_width, frame_height))
 
         for frame in self._camera_logs:
