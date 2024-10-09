@@ -19,16 +19,19 @@ class Camera:
     def get_frame(self):
         frames = self.pipeline.wait_for_frames()
         rgb = frames.get_color_frame()
+        
+        # print("camera frame (should increase): ", rgb.get_frame_number())
 
         if not rgb: 
             return None
 
         rgb_data = rgb.as_frame().get_data()
+        
+        # need to copy to avoid filling the buffer and getting duplicate frames
         np_image = np.asanyarray(rgb_data)
 
-        img = Image.fromarray(np_image)
-        return img
-
+        return np_image.copy()
+    
     def stop(self):
         self.pipeline.stop()
 
