@@ -1,4 +1,3 @@
-from franka_spacemouse import FrankaController
 import time
 import datetime
 import os
@@ -7,7 +6,7 @@ import numpy as np
 import panda_py
 
 class Logger:
-    def __init__(self, fc: FrankaController, task_description_required=True) -> None:
+    def __init__(self, fc: 'FrankaController', task_description_required=True) -> None:
         self.fc = fc
         
         self.task_description_required = task_description_required
@@ -35,7 +34,7 @@ class Logger:
         self.fc.panda.disable_logging()
         
         if save:
-            logs = self.process_log()
+            logs = self.get_resampled_logs()
             
             if self.task_description_required:
                 task_desc = input("Enter task description such as 'pick up the red cube',  or press enter to leave blank: ")
@@ -69,18 +68,12 @@ class Logger:
             
         out.release()
         
-    def process_log(self):
-        logs = self.fc.panda.get_log()
-
-        franka_q = np.array(logs['q'])
-        franka_dq = np.array(logs['dq'])
+    def get_resampled_logs(self):
+        franka_q, franka_dq, franka_pose, franka_t, gripper_status = self._get_franka_logs()
         
-        franka_t = np.array(logs['time'])
         franka_t = (franka_t-franka_t[0]) / 1e3
         franka_t = np.squeeze(franka_t)
-        franka_pose = np.array([panda_py.fk(qq) for qq in franka_q])
 
-        gripper_status = np.array(self._logs['gripper'])
         gripper_t = np.array(self._logs['time'])
         gripper_t = (gripper_t - gripper_t[0]) / 1e9
 
@@ -117,10 +110,36 @@ class Logger:
         
         return data
 
+    def _get_franka_logs(self):
+        logs = self.fc.panda.get_log()
 
+        franka_q = np.array(logs['q'])
+        franka_dq = np.array(logs['dq'])
+        franka_pose = np.array([panda_py.fk(qq) for qq in franka_q])
+        franka_t = np.array(logs['time'])
+        gripper_status = np.array(self._logs['gripper'])
+        return franka_q,franka_dq,franka_pose,franka_t,gripper_status
+    
+    def get_current_state_for_inference(self):
+        state = self.fc.panda.get_state()
+        # gripper_status = int(self.fc.gripper.read_once().is_grasped)
+        gripper_status = 0
+        q = np.array(state.q)
+        q = np.concatenate([q, [gripper_status]])
+        q = np.concatenate([q, [gripper_status]])
+        timestep_pad_mask = np.array([0])
+        
+        image_primary = self.fc.camera.get_frame()
+        
+        # resize to 256x256
+        image_primary = cv2.resize(image_primary, (256, 256))
+        image_primary = np.expand_dims(image_primary, axis=0)
+        
+        q = np.expand_dims(q, axis=0)
+        return {'proprio': q, 'timestep_pad_mask': timestep_pad_mask, 'image_primary': image_primary}
 
-
-
+if __name__ == "__main__":
+    from controller.franka_controller import FrankaController
 
 
 # e.g., a dataset for diffusion policy may have inputs/state as (img{t}, franka_q{t}, franka_dq{t} or img{t}, franka_pose{t}) and output as (franka_pose {t+1 : }, gripper_status {t+1 : })
