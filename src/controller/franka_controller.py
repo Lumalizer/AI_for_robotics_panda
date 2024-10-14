@@ -7,30 +7,41 @@ constants.JOINT_LIMITS_LOWER = np.array([-2.7437, -1.7837, -2.9007, -3.0421, -2.
 constants.JOINT_LIMITS_UPPER = np.array([2.7437, 1.7837, 2.9007, -0.1518, 2.8065, 4.5169, 3.0159])
 import panda_py
 from panda_py import libfranka
-from spacemousecontroller import SpaceMouseController, SpaceMouseState
 from panda_py import controllers
-from camera import Camera
+from in_out.spacemousecontroller import SpaceMouseController, SpaceMouseState
+from in_out.camera import Camera
+from controller.franka_runner import FrankaRunner
+import click
+from in_out.logger import Logger
 
 class FrankaController:
     def __init__(self, 
-                 logger:'Logger'=None, 
+                 logger:Logger=None, 
                  conversion_factor=0.003, 
                  angle_conversion_factor=0.4, 
                  mouse_axes_conversion=SpaceMouseState(1, 1, 1, 1, 1, 1), 
                  dataset_name="test_franka_ds",
-                 max_runtime=-1):
+                 max_runtime=-1,
+                 runner: FrankaRunner=None):
         
         self.panda = panda_py.Panda("172.16.0.2")
         self.gripper = libfranka.Gripper("172.16.0.2")
+        self.runner = runner
         self.dataset_name = dataset_name
         
-        self.spacemouse_controller = SpaceMouseController(self.button_callback, conversion_factor, angle_conversion_factor, mouse_axes_conversion)
+        try:
+            self.spacemouse_controller = SpaceMouseController(self.button_callback, conversion_factor, angle_conversion_factor, mouse_axes_conversion)
+        except Exception as e:
+            self.spacemouse_controller = None
+            print("SpaceMouse not connected.")
         
         self.is_gripping = False
         self.max_runtime = max_runtime
         
         self.is_recording = threading.Event()
         self.camera = None
+        self._start_camera_thread()
+        
         if logger is None:
             self.logger = Logger(self)
 
@@ -66,8 +77,11 @@ class FrankaController:
     def camera_thread_fn(self):
         while True:
             while self.is_recording.is_set():
-                self.logger._camera_logs.append(self.camera.get_frame())
-                self.logger._camera_time.append(time.time_ns())
+                try:
+                    self.logger._camera_logs.append(self.camera.get_frame())
+                    self.logger._camera_time.append(time.time_ns())
+                except Exception as e:
+                    print(f"Error in camera thread: {e}")
             time.sleep(0.001)
 
     def _start_camera_thread(self):
@@ -77,8 +91,7 @@ class FrankaController:
             cam_thread = threading.Thread(target=self.camera_thread_fn, daemon=True)
             cam_thread.start()
         except Exception as e:
-            print("Camera not connected.")
-            raise e
+            print(f"Camera not connected. Reason: {e}")
 
     def enable_spacemouse_control(self, log=True):
         self.is_gripping = self.gripper.read_once().is_grasped
@@ -146,10 +159,60 @@ class FrankaController:
                     self.is_recording.clear()
                 else:
                     raise e
-
-
-if __name__ == "__main__":
-    from logger import Logger
+                
+    def get_current_obs(self):
+        return self.logger.get_current_state_for_inference()
     
+    def perform_action(self, action):
+        self.panda.move(action)
+                
+    def run_with_model(self):
+        if self.runner is None:
+            raise ValueError("Runner not set.")
+        goal_instruction = ""
+        
+        self.panda.start_controller(self.ctrl)
+        
+        # while True:
+            
+        self.reset_robot_position()
+        print("Current instruction: ", goal_instruction)
+        if click.confirm("Take a new instruction?", default=True):
+            text = input("Instruction?")
+        goal_instruction = text
+            
+        text="pick up the blue cube"    
+        
+        task = self.runner.model.create_tasks(texts=[text])
+        # For logging purposes
+        
+        # do rollouty            
+        self.logger.enter_logging()
+        time.sleep(1)
+        
+        with self.panda.create_context(frequency=1e2, max_runtime=10) as ctx:
+            while ctx.ok():
+                # get action
+                obs = self.get_current_obs()
+
+                pos, orientation = self.runner.infer(obs, task)
+                # pos, orientation = np.array([0.00037571, 0.33561856, 0.00194166]), np.array([-0.02767331, 0.00433949, 0.41773731, -0.00540806])  
+                
+                # TODO : for some reason, not moving yet
+                self.ctrl.set_control(pos, orientation)
+                
+
+                # # perform environment step
+                # self.perform_action(action)
+                                    
+        
+        self.logger.exit_logging(save=False)
+        time.sleep(1)
+
+                    
+
+if __name__ == "__main__":    
     fc = FrankaController(dataset_name="test_franka_ds")
     fc.collect_demonstrations()
+    
+    
