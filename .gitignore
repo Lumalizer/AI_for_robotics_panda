@@ -1,6 +1,8 @@
 # our ignores
 logs
 examples
+octo
+trained_models
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
