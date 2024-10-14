@@ -4,8 +4,8 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_datasets as tfds
 import tensorflow_hub as hub
-
 import cv2
+from scipy.spatial.transform import Rotation
 
 class AirNet(tfds.core.GeneratorBasedBuilder):
     """DatasetBuilder for example dataset."""
@@ -38,17 +38,20 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
                         #     doc='Wrist camera RGB observation.',
                         # ),
                         'state': tfds.features.Tensor(
-                            shape=(9,),
+                            shape=(11,),
                             dtype=np.float32,
                             doc='Robot state, consists of [7x robot joint angles, '
                                 '2x gripper position].', 
+                                # 7x joint angles (q), (3 + 4)x FK (q), dq (7 joint angle velocities), 1x gripper state
+                                # optional: delta fk (q) (avoid for now)
                         )
                     }),
                     'action': tfds.features.Tensor(
-                        shape=(10,),
+                        shape=(7,),
                         dtype=np.float32,
                         doc='Robot action, consists of [7x joint velocities, '
                             '2x gripper velocities, 1x terminate episode].',
+                            # 3 deltas xyz 3 deltas roll pitch yaw 1 delta grip 
                     ),
                     'discount': tfds.features.Scalar(
                         dtype=np.float32,
@@ -101,7 +104,9 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
         """Generator of examples for each split."""
         
         def _parse_example(episode_path):
-            
+
+            # TODO: add deltas (from franka_pose --> split in xyz and rot_matrix)
+
             data = np.load(episode_path, allow_pickle=True)  # list of dicts in our case
             mp4_path = episode_path.replace('.npy', '.mp4')
             
@@ -120,17 +125,32 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
             # assemble episode --> here we're assuming demos so we set reward to 1 at the end
             
             episode = []
-            for i, step in enumerate(data):
+            for i in range(len(data) - 1):
+                step = data[i]
+                next_step = data[i + 1]
+
+                pose = step['pose']
+                pos = pose[:3, 3]
+                rot = Rotation.from_matrix(pose[:3, :3])
+
+                next_pose = next_step['pose']
+                next_pos = next_pose[:3, 3]
+                next_rot = Rotation.from_matrix(next_pose[:3, :3])
+
+                delta_xyz = next_pos - pos
+
+                delta_rot = next_rot * rot.inv()
+                delta_y, delta_p, delta_r = delta_rot.as_euler('zyx', degrees=False)
+
+                grip = next_step['gripper_status']
                 
                 # compute Kona language embedding
                 language_embedding = self._embed([step['task_description']])[0].numpy()
         
-                grips = np.expand_dims(step['gripper_status'], axis=0)
-                grips = np.concatenate([grips, grips]) 
-                state = np.concatenate([step['franka_q'], grips]).astype(np.float32)
+                state = np.concatenate([step['franka_q'], pos, grip]).astype(np.float32)
                 
-                terminate_action = np.array([True if i == (len(data) - 1) else False], dtype=np.float32)
-                action = np.concatenate([step['franka_dq'], grips, terminate_action]).astype(np.float32)
+                # terminate_action = np.array([True if i == (len(data) - 1) else False], dtype=np.float32)
+                action = np.array([*delta_xyz, delta_y, delta_p, delta_r, grip]).astype(np.float32)
                 
                 episode.append({
                     'observation': {
