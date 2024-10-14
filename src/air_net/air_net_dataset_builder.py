@@ -129,11 +129,11 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
                 step = data[i]
                 next_step = data[i + 1]
 
-                pose = step['pose']
+                pose = step['franka_pose']
                 pos = pose[:3, 3]
                 rot = Rotation.from_matrix(pose[:3, :3])
 
-                next_pose = next_step['pose']
+                next_pose = next_step['franka_pose']
                 next_pos = next_pose[:3, 3]
                 next_rot = Rotation.from_matrix(next_pose[:3, :3])
 
@@ -146,8 +146,9 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
                 
                 # compute Kona language embedding
                 language_embedding = self._embed([step['task_description']])[0].numpy()
-        
-                state = np.concatenate([step['franka_q'], pos, grip]).astype(np.float32)
+
+                gripper_state = np.expand_dims(grip, axis=0)
+                state = np.concatenate([step['franka_q'], pos, gripper_state]).astype(np.float32)
                 
                 # terminate_action = np.array([True if i == (len(data) - 1) else False], dtype=np.float32)
                 action = np.array([*delta_xyz, delta_y, delta_p, delta_r, grip]).astype(np.float32)
