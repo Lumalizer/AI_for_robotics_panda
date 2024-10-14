@@ -4,6 +4,7 @@ import os
 import cv2
 import numpy as np
 import panda_py
+from scipy.spatial.transform import Rotation
 
 class Logger:
     def __init__(self, fc: 'FrankaController', task_description_required=True) -> None:
@@ -122,11 +123,18 @@ class Logger:
     
     def get_current_state_for_inference(self):
         state = self.fc.panda.get_state()
-        # gripper_status = int(self.fc.gripper.read_once().is_grasped)
-        gripper_status = 0
+        
         q = np.array(state.q)
-        q = np.concatenate([q, [gripper_status]])
-        q = np.concatenate([q, [gripper_status]])
+        pose = panda_py.fk(q)
+        
+        pos = pose[:3, 3]
+        rot = Rotation.from_matrix(pose[:3, :3])
+        # gripper_status = int(self.fc.gripper.read_once().is_grasped)
+        
+        # use fk on q
+        # add dq and xyz
+        
+        gripper_status = np.array([0])
         timestep_pad_mask = np.array([1])
         
         image_primary = self.fc.camera.get_frame()
@@ -135,8 +143,9 @@ class Logger:
         image_primary = cv2.resize(image_primary, (256, 256))
         image_primary = np.expand_dims(image_primary, axis=0)
         
-        q = np.expand_dims(q, axis=0)
-        return {'proprio': q, 'timestep_pad_mask': timestep_pad_mask, 'image_primary': image_primary}
+        state = np.concatenate([q, pos, gripper_status])
+        state = np.expand_dims(state, axis=0)
+        return {'proprio': state, 'timestep_pad_mask': timestep_pad_mask, 'image_primary': image_primary}
 
 if __name__ == "__main__":
     from controller.franka_controller import FrankaController

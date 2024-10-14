@@ -82,6 +82,8 @@ class FrankaController:
                     self.logger._camera_time.append(time.time_ns())
                 except Exception as e:
                     print(f"Error in camera thread: {e}")
+                    self.camera.stop()
+                    raise e
             time.sleep(0.001)
 
     def _start_camera_thread(self):
@@ -91,7 +93,9 @@ class FrankaController:
             cam_thread = threading.Thread(target=self.camera_thread_fn, daemon=True)
             cam_thread.start()
         except Exception as e:
-            print(f"Camera not connected. Reason: {e}")
+            print(f"Camera not connected.")
+            self.camera.stop()
+            raise e
 
     def enable_spacemouse_control(self, log=True):
         self.is_gripping = self.gripper.read_once().is_grasped
@@ -162,53 +166,74 @@ class FrankaController:
                 
     def get_current_obs(self):
         return self.logger.get_current_state_for_inference()
-    
-    def perform_action(self, action):
-        self.panda.move(action)
                 
     def run_with_model(self):
         if self.runner is None:
             raise ValueError("Runner not set.")
-        goal_instruction = ""
         
         self.panda.start_controller(self.ctrl)
         
         # while True:
             
         self.reset_robot_position()
-        print("Current instruction: ", goal_instruction)
-        if click.confirm("Take a new instruction?", default=True):
-            text = input("Instruction?")
-        goal_instruction = text
+        
+        # goal_instruction = ""        
+        # print("Current instruction: ", goal_instruction)
+        # if click.confirm("Take a new instruction?", default=True):
+        #     text = input("Instruction?")
+        # goal_instruction = text
             
         text="pick up the blue cube"    
         
         task = self.runner.model.create_tasks(texts=[text])
-        # For logging purposes
         
-        # do rollouty            
         self.logger.enter_logging()
         time.sleep(1)
         
-        with self.panda.create_context(frequency=1e2, max_runtime=10) as ctx:
+        with self.panda.create_context(frequency=10, max_runtime=30) as ctx:
             while ctx.ok():
                 # get action
-                obs = self.get_current_obs()
+                obs = self.get_current_obs() # q, pos, gripper input for inference
+                
+                pose = self.panda.get_pose() # I guess these would already be in obs, except the angles?
+                pos = pose[:3, 3]
+                angles = Rotation.from_matrix(pose[:3, :3]).as_quat()
 
-                pos, orientation = self.runner.infer(obs, task)
-                # pos, orientation = np.array([0.00037571, 0.33561856, 0.00194166]), np.array([-0.02767331, 0.00433949, 0.41773731, -0.00540806])  
+                action = self.runner.infer(obs, task)
+                delta_x, delta_y, delta_z, delta_yaw, delta_pitch, delta_roll, grip = action
+                
+                # current_xyz = obs['proprio'][0][:3]
+                current_xyz = pos
+                absolute_xyz = current_xyz + np.array([delta_x, delta_y, delta_z])
+                absolute_xyz = np.expand_dims(absolute_xyz, axis=1)
+                
+                # current_rot = Rotation.from_quat(obs['proprio'][0][3:7])
+                current_rot = Rotation.from_quat(angles)
+                absolute_orientation = current_rot * Rotation.from_euler('zyx', [delta_yaw, delta_pitch, delta_roll], degrees=False)
+                absolute_orientation = np.expand_dims(absolute_orientation.as_quat(), axis=1)
+                
+                print(absolute_xyz)
+                print(absolute_orientation)
+                
+                # EXAMPLE:
+                
+                # [[ 3.07505439e-01]
+                # [-1.94107446e-04]
+                # [ 4.86039439e-01]]
+                # [[ 9.99999718e-01]
+                # [ 2.57927948e-04]
+                # [ 3.57304280e-04]
+                # [-6.08647674e-04]]
+                # [[ 3.07261661e-01]
+                # [-2.14614993e-04]
+                # [ 4.86037542e-01]]
                 
                 # TODO : for some reason, not moving yet
-                self.ctrl.set_control(pos, orientation)
-                
-
-                # # perform environment step
-                # self.perform_action(action)
-                                    
-        
+                self.ctrl.set_control(absolute_xyz, absolute_orientation)
+                                         
         self.logger.exit_logging(save=False)
+        self.panda.stop_controller()
         time.sleep(1)
-
                     
 
 if __name__ == "__main__":    
