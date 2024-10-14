@@ -5,6 +5,12 @@ from PIL import Image
 
 class Camera:
     def __init__(self):
+        # reset devices to fix errors
+        ctx = rs.context()
+        devices = ctx.query_devices()
+        for dev in devices:
+            dev.hardware_reset()
+
         self.pipeline = rs.pipeline()
         self.config = rs.config()
 

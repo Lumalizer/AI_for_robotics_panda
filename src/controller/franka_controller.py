@@ -40,6 +40,7 @@ class FrankaController:
         
         self.is_recording = threading.Event()
         self.camera = None
+        self._start_camera_thread()
         
         if logger is None:
             self.logger = Logger(self)
@@ -76,8 +77,11 @@ class FrankaController:
     def camera_thread_fn(self):
         while True:
             while self.is_recording.is_set():
-                self.logger._camera_logs.append(self.camera.get_frame())
-                self.logger._camera_time.append(time.time_ns())
+                try:
+                    self.logger._camera_logs.append(self.camera.get_frame())
+                    self.logger._camera_time.append(time.time_ns())
+                except Exception as e:
+                    print(f"Error in camera thread: {e}")
             time.sleep(0.001)
 
     def _start_camera_thread(self):
@@ -87,7 +91,7 @@ class FrankaController:
             cam_thread = threading.Thread(target=self.camera_thread_fn, daemon=True)
             cam_thread.start()
         except Exception as e:
-            print("Camera not connected.")
+            print(f"Camera not connected. Reason: {e}")
 
     def enable_spacemouse_control(self, log=True):
         self.is_gripping = self.gripper.read_once().is_grasped
@@ -162,50 +166,50 @@ class FrankaController:
     def perform_action(self, action):
         self.panda.move(action)
                 
-    def run_with_model(self, num_timesteps=10, step_duration=0.2):
+    def run_with_model(self):
         if self.runner is None:
             raise ValueError("Runner not set.")
         goal_instruction = ""
         
         self.panda.start_controller(self.ctrl)
         
-        while True:
+        # while True:
             
-            self.reset_robot_position()
-            # print("Current instruction: ", goal_instruction)
-            # if click.confirm("Take a new instruction?", default=True):
-            #     text = input("Instruction?")
-            # goal_instruction = text
+        self.reset_robot_position()
+        print("Current instruction: ", goal_instruction)
+        if click.confirm("Take a new instruction?", default=True):
+            text = input("Instruction?")
+        goal_instruction = text
+            
+        text="pick up the blue cube"    
+        
+        task = self.runner.model.create_tasks(texts=[text])
+        # For logging purposes
+        
+        # do rollouty            
+        self.logger.enter_logging()
+        time.sleep(1)
+        
+        with self.panda.create_context(frequency=1e2, max_runtime=10) as ctx:
+            while ctx.ok():
+                # get action
+                obs = self.get_current_obs()
+
+                pos, orientation = self.runner.infer(obs, task)
+                # pos, orientation = np.array([0.00037571, 0.33561856, 0.00194166]), np.array([-0.02767331, 0.00433949, 0.41773731, -0.00540806])  
                 
-            text="pick up the blue cube"    
-            
-            task = self.runner.model.create_tasks(texts=[text])
-            # For logging purposes
-            
-            # do rollouty            
-            self.logger.enter_logging()
-            with self.panda.create_context(frequency=1e3, max_runtime=self.max_runtime) as ctx:
-                while ctx.ok():
-                    # get action
-                    obs = self.get_current_obs()
+                # TODO : for some reason, not moving yet
+                self.ctrl.set_control(pos, orientation)
+                
 
-                    if obs is not None:
-                        action = np.array(self.runner.policy_fn(obs, task), dtype=np.float64)
-                        action = action[0]
-                        pos = np.expand_dims(action[:3], axis=1)
-                        orientation = np.expand_dims(action[3:7], axis=1)
-                        
-                        print(pos, orientation)
-                        
-                        # TODO : for some reason, not moving yet
-                        self.ctrl.set_control(pos, orientation)
+                # # perform environment step
+                # self.perform_action(action)
+                                    
+        
+        self.logger.exit_logging(save=False)
+        time.sleep(1)
+
                     
-
-                    # # perform environment step
-                    # self.perform_action(action)
-                                        
-            
-            self.logger.exit_logging(save=False)
 
 if __name__ == "__main__":    
     fc = FrankaController(dataset_name="test_franka_ds")
