@@ -8,7 +8,6 @@ from octo.model.octo_model import OctoModel
 from octo.utils.train_callbacks import supply_rng
 import jax
 import numpy as np
-import random
 
 
 class OctoRunner(FrankaRunner):
@@ -26,8 +25,6 @@ class OctoRunner(FrankaRunner):
             rng=rng,
             unnormalization_statistics=model.dataset_statistics["action"],
         )
-        # remove batch dim
-        # return random.choice(actions)
         return actions[0]
     
     @property
@@ -41,16 +38,9 @@ class OctoRunner(FrankaRunner):
             )
         )
         
-    def infer(self, obs, task) -> tuple[np.ndarray, np.ndarray]:
+    def infer(self, obs, task):
         action = np.array(self.policy_fn(obs, task), dtype=np.float64)
-        action = action[0]
-        # action = random.choice(action)
-        pos = np.expand_dims(action[:3], axis=1)
-        orientation = np.expand_dims(action[3:7], axis=1)
-        
-        print(pos, orientation)
-        
-        return pos, orientation
+        return action[0]
 
 if __name__ == "__main__":
     from controller.franka_controller import FrankaController

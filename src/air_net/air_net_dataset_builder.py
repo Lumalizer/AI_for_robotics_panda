@@ -105,7 +105,7 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
         
         def _parse_example(episode_path):
 
-            # TODO: add deltas (from franka_pose --> split in xyz and rot_matrix)
+            # add deltas (from franka_pose --> split in xyz and rot_matrix)
 
             data = np.load(episode_path, allow_pickle=True)  # list of dicts in our case
             mp4_path = episode_path.replace('.npy', '.mp4')
@@ -124,6 +124,7 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
             
             # assemble episode --> here we're assuming demos so we set reward to 1 at the end
             
+            # TODO: check if what follows is correct
             episode = []
             for i in range(len(data) - 1):
                 step = data[i]
