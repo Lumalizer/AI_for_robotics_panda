@@ -5,5 +5,5 @@ class FrankaRunner:
     def __init__(self):
         pass
 
-    def infer(self, obs) -> np.ndarray:
+    def infer(self, obs, task) -> np.ndarray:
         raise NotImplementedError

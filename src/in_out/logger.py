@@ -127,7 +127,7 @@ class Logger:
         q = np.array(state.q)
         q = np.concatenate([q, [gripper_status]])
         q = np.concatenate([q, [gripper_status]])
-        timestep_pad_mask = np.array([0])
+        timestep_pad_mask = np.array([1])
         
         image_primary = self.fc.camera.get_frame()
         

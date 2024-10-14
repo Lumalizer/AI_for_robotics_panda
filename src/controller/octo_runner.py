@@ -7,6 +7,8 @@ from controller.franka_runner import FrankaRunner
 from octo.model.octo_model import OctoModel
 from octo.utils.train_callbacks import supply_rng
 import jax
+import numpy as np
+import random
 
 
 class OctoRunner(FrankaRunner):
@@ -15,7 +17,7 @@ class OctoRunner(FrankaRunner):
         
         print(self.model.dataset_statistics.keys())
         
-    def sample_actions(self, model, observations, tasks, rng, argmax=True, temperature=1.0, *args, **kwargs):
+    def sample_actions(self, model: OctoModel, observations, tasks, rng, argmax=False, temperature=1.0, *args, **kwargs):
         # add batch dim to observations
         observations = jax.tree_map(lambda x: x[None], observations)
         actions = model.sample_actions(
@@ -25,6 +27,7 @@ class OctoRunner(FrankaRunner):
             unnormalization_statistics=model.dataset_statistics["action"],
         )
         # remove batch dim
+        # return random.choice(actions)
         return actions[0]
     
     @property
@@ -33,10 +36,21 @@ class OctoRunner(FrankaRunner):
             partial(
                 self.sample_actions,
                 self.model,
-                argmax=True,
+                argmax=False,
                 temperature=1.0,
             )
         )
+        
+    def infer(self, obs, task) -> tuple[np.ndarray, np.ndarray]:
+        action = np.array(self.policy_fn(obs, task), dtype=np.float64)
+        action = action[0]
+        # action = random.choice(action)
+        pos = np.expand_dims(action[:3], axis=1)
+        orientation = np.expand_dims(action[3:7], axis=1)
+        
+        print(pos, orientation)
+        
+        return pos, orientation
 
 if __name__ == "__main__":
     from controller.franka_controller import FrankaController
