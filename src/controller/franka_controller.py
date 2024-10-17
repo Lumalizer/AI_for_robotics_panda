@@ -10,9 +10,9 @@ from panda_py import libfranka
 from panda_py import controllers
 from in_out.spacemousecontroller import SpaceMouseController, SpaceMouseState
 from in_out.camera import Camera
+from in_out.logger import Logger
 from controller.franka_runner import FrankaRunner
 import click
-from in_out.logger import Logger
 
 class FrankaController:
     def __init__(self, 

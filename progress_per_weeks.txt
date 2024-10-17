@@ -37,3 +37,17 @@ w4
 - rlds data format checks for submission to the open-x embodiment in the future - once the data is functioning for finetuning the models 
     - will be necessary to collect more high quality data in novel environments along with a variety of tasks 
 - folder with subfolders with trajectories, no longer colelcting raw data 
+
+
+w5 
+
+dataset
+- traj train / val set, observe val loss 
+- visualize the trajectories 
+- finetune 
+
+general 
+- github / drive 
+
+openvla / octo 
+- 

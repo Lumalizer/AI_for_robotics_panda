@@ -76,12 +76,12 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
                     'language_instruction': tfds.features.Text(
                         doc='Language Instruction.'
                     ),
-                    'language_embedding': tfds.features.Tensor(
-                        shape=(512,),
-                        dtype=np.float32,
-                        doc='Kona language embedding. '
-                            'See https://tfhub.dev/google/universal-sentence-encoder-large/5'
-                    ),
+                    # 'language_embedding': tfds.features.Tensor(
+                    #     shape=(512,),
+                    #     dtype=np.float32,
+                    #     doc='Kona language embedding. '
+                    #         'See https://tfhub.dev/google/universal-sentence-encoder-large/5'
+                    # ),
                 }),
                 'episode_metadata': tfds.features.FeaturesDict({
                     'file_path': tfds.features.Text(
@@ -146,7 +146,7 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
                 grip = next_step['gripper_status']
                 
                 # compute Kona language embedding
-                language_embedding = self._embed([step['task_description']])[0].numpy()
+                # language_embedding = self._embed([step['task_description']])[0].numpy()
 
                 gripper_state = np.expand_dims(grip, axis=0)
                 state = np.concatenate([step['franka_q'], pos, gripper_state]).astype(np.float32)
@@ -166,8 +166,8 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
                     'is_first': i == 0,
                     'is_last': i == (len(data) - 1),
                     'is_terminal': i == (len(data) - 1),
-                    'language_instruction': step['task_description'],
-                    'language_embedding': language_embedding,
+                    'language_instruction': step['task_description']
+                    # 'language_embedding': language_embedding,
                 })
 
             # create output data sample
