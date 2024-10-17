@@ -20,7 +20,8 @@ class Camera:
 
         self.config.enable_stream(rs.stream.color, 640, 480, rs.format.rgb8, 30)
 
-        self.pipeline.start()
+        self.active = False
+        # self.pipeline.start()
 
     def get_frame(self):
         frames = self.pipeline.wait_for_frames()
@@ -38,8 +39,15 @@ class Camera:
 
         return np_image.copy()
     
+    def start(self):
+        if not self.active:
+            self.active = True
+            self.pipeline.start()
+    
     def stop(self):
-        self.pipeline.stop()
+        if self.active:
+            self.active = False
+            self.pipeline.stop()
 
 
 
