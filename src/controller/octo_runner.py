@@ -14,7 +14,7 @@ class OctoRunner(FrankaRunner):
     def __init__(self, model: str="trained_models"):
         self.model = OctoModel.load_pretrained(model, 4999)
         
-        print(self.model.dataset_statistics.keys())
+        # print(self.model.dataset_statistics.keys())
         
     def sample_actions(self, model: OctoModel, observations, tasks, rng, argmax=False, temperature=1.0, *args, **kwargs):
         # add batch dim to observations
@@ -38,9 +38,15 @@ class OctoRunner(FrankaRunner):
             )
         )
         
-    def infer(self, obs, task):
+    def infer(self, obs, task) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         action = np.array(self.policy_fn(obs, task), dtype=np.float64)
-        return action[0]
+        action = action[0]
+        
+        delta_xyz = action[:3]
+        delta_rot = action[3:-1]
+        grip = action[-1]
+        
+        return delta_xyz, delta_rot, grip
 
 if __name__ == "__main__":
     from controller.franka_controller import FrankaController
