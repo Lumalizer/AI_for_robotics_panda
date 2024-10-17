@@ -91,6 +91,14 @@ def main(_):
         .iterator()
     )
 
+    val_data_iter = (
+        dataset.repeat()
+        .unbatch()
+        .shuffle(2000)
+        .batch(FLAGS.batch_size)
+        .iterator()
+    )
+
     # run text tokenizer over batch (this needs to happen before training / sharding) + delete unused keys
     text_processor = pretrained_model.text_processor
 
@@ -101,6 +109,8 @@ def main(_):
 
     train_data_iter = map(process_batch, train_data_iter)
     example_batch = next(train_data_iter)
+
+    val_data_iter = map(process_batch, val_data_iter)
 
     # load pre-training config and modify --> remove wrist cam, add proprio input, change action head
     # following Zhao et al. we use "action chunks" of length 50 and L1 loss for ALOHA
@@ -181,22 +191,41 @@ def main(_):
         )
         new_state = state.apply_gradients(grads=grads, rng=rng)
         return new_state, info
-
+    
+    @jax.jit
+    def val_step(state, batch):
+        rng, dropout_rng = jax.random.split(state.rng)
+        (loss, info) = jax.value_and_grad(loss_fn, has_aux=True)(state.model.params, batch, dropout_rng, train=False)
+        return info 
+    
     # run finetuning loop
     logging.info("Starting finetuning...")
+
+    val_batch = next(val_data_iter)
+    
     for i in tqdm.tqdm(range(5000), total=5000, dynamic_ncols=True):
-        batch = next(train_data_iter)
-        train_state, update_info = train_step(train_state, batch)
+        train_batch = next(train_data_iter)
+        train_state, update_info = train_step(train_state, train_batch)
+
+
         if (i + 1) % 100 == 0:
             update_info = jax.device_get(update_info)
             wandb.log(
                 flax.traverse_util.flatten_dict({"training": update_info}, sep="/"),
-                step=i,
+                step=i)
+            
+            # run validation
+            val_info = val_step(train_state, val_batch)
+            val_info = jax.device_get(val_info)
+            wandb.log(
+                flax.traverse_util.flatten_dict({"validation": val_info}, sep="/"),
+                step=i
             )
+
         if (i + 1) % 1000 == 0:
             # save checkpoint
             train_state.model.save_pretrained(step=i, checkpoint_path=FLAGS.save_dir)
-
-
+        
 if __name__ == "__main__":
     app.run(main)
+
