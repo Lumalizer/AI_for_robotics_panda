@@ -17,7 +17,7 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._embed = hub.load("https://tfhub.dev/google/universal-sentence-encoder-large/5")
+        # self._embed = hub.load("https://tfhub.dev/google/universal-sentence-encoder-large/5")
 
     def _info(self) -> tfds.core.DatasetInfo:
         """Dataset metadata (homepage, citation,...)."""
@@ -96,8 +96,8 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
         return {
             # change the path to match the datasets subfolder
             
-            'train': self._generate_examples(path='../../../datasets/test_franka_ds/episode_*.npy'),
-            # 'val': self._generate_examples(path='data/val/episode_*.npy'),
+            'train': self._generate_examples(path='../../../datasets/test_franka_ds/train/episode_*.npy'),
+            'val': self._generate_examples(path='../../../datasets/test_franka_ds/val/episode_*.npy'),
         }
 
     def _generate_examples(self, path) -> Iterator[Tuple[str, Any]]:
