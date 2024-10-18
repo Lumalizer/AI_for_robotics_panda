@@ -119,9 +119,14 @@ class FrankaController:
 
                 mouse = self.spacemouse_controller.read()
     
-                pos += np.array([-mouse.y, mouse.x, mouse.z])
+                delta_pos = np.array([-mouse.y, mouse.x, mouse.z])
                 delta_rot = np.array([mouse.yaw, mouse.pitch, -mouse.roll])
+
+                pos += delta_pos
                 angles = self.add_rot_to_quat(angles, delta_rot, degrees=True)
+
+                # TODO: log actions
+                self.logger.log_action( np.array([*delta_pos, *delta_rot, self.is_gripping]) )
 
                 self.ctrl.set_control(pos, angles)
         
@@ -161,6 +166,7 @@ class FrankaController:
         if self.runner is None:
             raise ValueError("Runner not set.")
         
+        """
         # while True:
             
         self.reset_robot_position()
@@ -198,10 +204,11 @@ class FrankaController:
                 absolute_orientation = np.expand_dims(absolute_orientation, axis=1)
                 
                 self.ctrl.set_control(absolute_xyz, absolute_orientation)
-                                         
+                   
         self.panda.stop_controller()
         self.logger.exit_logging(save=False)
-                    
+        """
+
 
 if __name__ == "__main__":    
     fc = FrankaController(dataset_name="test_franka_ds")
