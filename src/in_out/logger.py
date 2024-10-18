@@ -16,7 +16,7 @@ class Logger:
         self.clear_logs()
         
     def clear_logs(self):
-        self._logs = {'gripper': [0], 'time': [time.time_ns()]}
+        self._logs = {'gripper': [0], 'time': [time.time_ns()], 'action': [np.zeros(7)]}
         self._camera_logs = []
         self._camera_time = []
         
@@ -38,7 +38,7 @@ class Logger:
     def camera_thread_fn(self):
         while True:
             if self.fc.is_recording.is_set():
-                self.camera.start()           
+                self.camera.start()
             while self.fc.is_recording.is_set():
                 try:
                     self._camera_logs.append(self.camera.get_frame())
@@ -75,7 +75,7 @@ class Logger:
             
             # date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             
-            dataset_path = os.path.join("datasets", self.fc.dataset_name)
+            dataset_path = os.path.join("../datasets", self.fc.dataset_name)
             os.makedirs(dataset_path, exist_ok=True)
             
             amount_episodes = len(os.listdir(dataset_path)) // 2
@@ -106,6 +106,7 @@ class Logger:
         franka_pose = np.array([panda_py.fk(qq) for qq in franka_q])
         franka_t = np.array(logs['time'])
         gripper_status = np.array(self._logs['gripper'])
+        action = np.array(self._logs['action'])  # action executed at time t, so this is already the target!
         
         franka_t = (franka_t-franka_t[0]) / 1e3
         franka_t = np.squeeze(franka_t)
@@ -125,7 +126,7 @@ class Logger:
         if gripper_resampled_indices[-1] == len(gripper_t):
             gripper_resampled_indices[-1] = len(gripper_t) - 1
 
-        print(len(franka_t), len(franka_resampled_indices), franka_resampled_indices[-1])
+        #print(len(franka_t), len(franka_resampled_indices), franka_resampled_indices[-1], len(action))
 
         franka_t = franka_t[franka_resampled_indices]
         franka_q = franka_q[franka_resampled_indices]
@@ -135,16 +136,23 @@ class Logger:
         gripper_t = gripper_t[gripper_resampled_indices]
         gripper_status = gripper_status[gripper_resampled_indices]
 
+        # action is relative, so we should add actions together in between resampled indices
+        action = np.cumsum(action, axis=0)
+        gripper_resampled_indices = gripper_resampled_indices.tolist()
+        action = np.diff(action[ gripper_resampled_indices+[len(action)-1] ],axis=0)
+
+        print(len(franka_t), len(gripper_status), len(action))
+
 
         # Now we have all the data we need, timestamp-aligned and sub-sampled at the same frame rate as the camera (ideally, 30Hz, if data collected through
         # usb-3 port)
         
-        assert(len(franka_t) == len(franka_q) == len(franka_dq) == len(franka_pose) == len(gripper_t) == len(gripper_status) == len(camera_frame_t))
+        assert(len(franka_t) == len(franka_q) == len(franka_dq) == len(franka_pose) == len(gripper_t) == len(gripper_status) == len(camera_frame_t) == len(action))
         
         data = []
                 
         for i in range(len(franka_t)-1):
-            data.append({'franka_t':franka_t[i], 'franka_q':franka_q[i], 'franka_dq':franka_dq[i], 'franka_pose':franka_pose[i], 'gripper_t':gripper_t[i], 'gripper_status':gripper_status[i], 'camera_frame_t':camera_frame_t[i]})
+            data.append({'franka_t':franka_t[i], 'franka_q':franka_q[i], 'franka_dq':franka_dq[i], 'franka_pose':franka_pose[i], 'gripper_t':gripper_t[i], 'gripper_status':gripper_status[i], 'action':action, 'camera_frame_t':camera_frame_t[i]})
         
         return data
     
@@ -153,6 +161,9 @@ class Logger:
         # self._logs['gripper'].append(self.fc.gripper.read_once().is_grasped)
         self._logs['gripper'].append(self.fc.is_gripping)
         self._logs['time'].append(time.time_ns())
+
+    def log_action(self, action):
+        self._logs['action'].append(action)
         
     def get_camera_frame_resized(self, size=(256, 256)):
         image_primary = self._camera_logs[-1]

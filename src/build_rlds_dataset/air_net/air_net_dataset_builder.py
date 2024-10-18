@@ -126,8 +126,9 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
             
             # TODO: check if what follows is correct
             episode = []
-            for i in range(len(data) - 1):
+            for i in range(len(data)):
                 step = data[i]
+                """
                 next_step = data[i + 1]
 
                 pose = step['franka_pose']
@@ -142,8 +143,11 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
 
                 delta_rot = next_rot * rot.inv()
                 delta_y, delta_p, delta_r = delta_rot.as_euler('zyx', degrees=False)
-
-                grip = next_step['gripper_status']
+                """
+                #action = step['action']
+                #delta_xyz = action[:3]
+                #delta_y, delta_p, delta_r = action[3:6]
+                #grip = step['gripper_status']
                 
                 # compute Kona language embedding
                 # language_embedding = self._embed([step['task_description']])[0].numpy()
@@ -152,7 +156,7 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
                 state = np.concatenate([step['franka_q'], pos, gripper_state]).astype(np.float32)
                 
                 # terminate_action = np.array([True if i == (len(data) - 1) else False], dtype=np.float32)
-                action = np.array([*delta_xyz, delta_y, delta_p, delta_r, grip]).astype(np.float32)
+                action = step['action']
                 
                 episode.append({
                     'observation': {
