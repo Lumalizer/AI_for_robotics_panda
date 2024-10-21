@@ -11,7 +11,7 @@ from panda_py import controllers
 from in_out.spacemousecontroller import SpaceMouseController, SpaceMouseState
 from in_out.logger import Logger
 from controller.franka_runner import FrankaRunner
-import cv2
+import threading
 
 class FrankaController:
     def __init__(self, 
@@ -23,19 +23,25 @@ class FrankaController:
                  max_runtime=-1,
                  runner: FrankaRunner=None):
         
+        # base setup
         self.panda = panda_py.Panda("172.16.0.2")
         self.gripper = libfranka.Gripper("172.16.0.2")
-        self.runner = runner
+        self.ctrl = controllers.CartesianImpedance()
         
         self.dataset_name = dataset_name
         self.max_runtime = max_runtime
         
+        # inference (octo / openvla)
+        self.runner = runner
+        
+        # space mouse
         try:
             self.spacemouse_controller = SpaceMouseController(self.button_callback, conversion_factor, angle_conversion_factor, mouse_axes_conversion)
         except Exception as e:
             self.spacemouse_controller = None
             print("SpaceMouse not connected.")
         
+        # logs / recording
         self.is_gripping = False
         self.is_recording = threading.Event()
         
@@ -43,7 +49,6 @@ class FrankaController:
             self.logger = Logger(self)
 
         self.reset_robot_position()
-        self.ctrl = controllers.CartesianImpedance()
 
     def reset_robot_position(self):
         self.panda.move_to_start()
@@ -102,6 +107,7 @@ class FrankaController:
         
         state = np.concatenate([state.q, pos, gripper_status])
         state = np.expand_dims(state, axis=0)
+        
         return {'proprio': state, 'image_primary': img, 'timestep_pad_mask': mask}, pos, angles      
 
     def enable_spacemouse_control(self, log=True, release_gripper_on_exit=True):
@@ -164,11 +170,12 @@ class FrankaController:
                 else:
                     raise e
                 
+    
+                
     def run_with_model(self):
         if self.runner is None:
             raise ValueError("Runner not set.")
         
-        """
         # while True:
             
         self.reset_robot_position()
@@ -189,15 +196,23 @@ class FrankaController:
         
         self.panda.start_controller(self.ctrl)
         
-        with self.panda.create_context(frequency=1, max_runtime=-1) as ctx:
+        with self.panda.create_context(frequency=10, max_runtime=-1) as ctx:
             while ctx.ok():
-                obs, pos, angles = self.get_current_state_for_inference() # q, pos, gripper input for inference                
-                delta_xyz, delta_rot, grip = self.runner.infer(obs, task)
+                # print(self.runner.model_in_queue.empty(), self.runner.model_out_queue.empty(), self.runner.is_running.is_set())
+                if self.runner.model_in_queue.empty():
+                    if not self.runner.is_running.is_set():
+                        print("putting in queue")
+                        obs, _, _ = self.get_current_state_for_inference()
+                        self.runner.model_in_queue.put((obs, task))
+                        
+                if self.runner.model_out_queue.empty():
+                    continue
+                else:
+                    delta_xyz, delta_rot, grip = self.runner.model_out_queue.get()
+                    print(delta_xyz, delta_rot, grip)
                 
-                # TODO : inference above keeps interrupting control loop --> new thread?
-                # it works fine with the dummy values below (comment out infer)
-                # delta_xyz = np.array([.01,.01,.01])
-                # delta_rot = np.array([.01,.01,.01])
+                obs, pos, angles = self.get_current_state_for_inference()              
+                # delta_xyz, delta_rot, grip = self.runner.infer(obs, task)
 
                 absolute_xyz = pos + delta_xyz
                 absolute_xyz = np.expand_dims(absolute_xyz, axis=1)
@@ -209,7 +224,6 @@ class FrankaController:
                    
         self.panda.stop_controller()
         self.logger.exit_logging(save=False)
-        """
 
 
 if __name__ == "__main__":    
