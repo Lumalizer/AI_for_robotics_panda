@@ -20,11 +20,15 @@ class OctoRunner(FrankaRunner):
         task = self.model.create_tasks(texts=["warmup"])
         self.infer(obs, task)
         
+        super().__init__()
+        
         # print(self.model.dataset_statistics.keys())
         
     def sample_actions(self, model: OctoModel, observations, tasks, rng, argmax=False, temperature=1.0, *args, **kwargs):
         # add batch dim to observations
         observations = jax.tree_map(lambda x: x[None], observations)
+        
+        # FIXME : next line does not work in MULTIPROCSSING because of JAX; unsure how to fix
         actions = model.sample_actions(
             observations,
             tasks,
@@ -44,7 +48,11 @@ class OctoRunner(FrankaRunner):
             )
         )
         
-    def infer(self, obs, task) -> tuple[np.ndarray, np.ndarray, np.ndarray]:       
+    def infer(self, obs, task) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        # works
+        # return np.array([0,0,0]), np.array([0,0,0]), np.array([0])
+        
+        # won't work
         action = np.array(self.policy_fn(obs, task), dtype=np.float64)
         action = action[0]
         
@@ -53,6 +61,7 @@ class OctoRunner(FrankaRunner):
         grip = action[-1]
         
         return delta_xyz, delta_rot, grip
+            
 
 if __name__ == "__main__":
     from controller.franka_controller import FrankaController
