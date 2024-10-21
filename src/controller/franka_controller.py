@@ -17,9 +17,9 @@ class FrankaController:
     def __init__(self, 
                  logger:Logger=None, 
                  conversion_factor=0.003, 
-                 angle_conversion_factor=0.4, 
+                 angle_conversion_factor=0.1, 
                  mouse_axes_conversion=SpaceMouseState(1, 1, 1, 1, 1, 1), 
-                 dataset_name="test_franka_ds",
+                 dataset_name="mk2_test_franka_ds",
                  max_runtime=-1,
                  runner: FrankaRunner=None):
         
@@ -104,7 +104,7 @@ class FrankaController:
         state = np.expand_dims(state, axis=0)
         return {'proprio': state, 'image_primary': img, 'timestep_pad_mask': mask}, pos, angles      
 
-    def enable_spacemouse_control(self, log=True):
+    def enable_spacemouse_control(self, log=True, release_gripper_on_exit=True):
         self.is_gripping = self.gripper.read_once().is_grasped
         pos, angles = self.get_pose_components()
 
@@ -115,8 +115,6 @@ class FrankaController:
         
         with self.panda.create_context(frequency=1e2, max_runtime=self.max_runtime) as ctx:
             while ctx.ok() and self.is_recording.is_set():
-                self.logger.log_gripper()
-
                 mouse = self.spacemouse_controller.read()
     
                 delta_pos = np.array([-mouse.y, mouse.x, mouse.z])
@@ -126,13 +124,17 @@ class FrankaController:
                 angles = self.add_rot_to_quat(angles, delta_rot, degrees=True)
 
                 # TODO: log actions
+                self.logger.log_gripper()
                 self.logger.log_action( np.array([*delta_pos, *delta_rot, self.is_gripping]) )
 
                 self.ctrl.set_control(pos, angles)
         
         self.panda.stop_controller()
         log and self.logger.exit_logging()
-
+        
+        if release_gripper_on_exit and self.is_gripping:
+            self.toggle_gripper()
+            
         self.reset_robot_position()
             
     def collect_demonstrations(self, amount=10):
