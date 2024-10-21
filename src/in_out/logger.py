@@ -68,22 +68,40 @@ class Logger:
             logs = self.get_resampled_logs()
             
             if self.task_description_required:
-                task_desc = input("Enter task description such as 'pick up the red cube',  or press enter to leave blank: ")
+                task_desc = input("Enter task description such as 'pick up the red cube',  or press enter to RE-RECORD this episode: ")
+                if not task_desc:
+                    return
                 
                 for log in logs:
                     log['task_description'] = task_desc
             
-            # date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            
-            dataset_path = os.path.join("../datasets", self.fc.dataset_name)
+            dataset_path = os.path.join("datasets", self.fc.dataset_name)
             os.makedirs(dataset_path, exist_ok=True)
             
-            amount_episodes = len(os.listdir(dataset_path)) // 2
-            episode_path = os.path.join(dataset_path, f'episode_{amount_episodes+1}.npy')
-            mp4_path = os.path.join(dataset_path, f'episode_{amount_episodes+1}.mp4')
+            # fill in the gaps in the episode numbers if needed
+            files = os.listdir(dataset_path)
+            existing_ep_nums = [int(f.split("episode_")[1].replace(".npy", ""))for f in files if f.endswith('.npy')]
+            
+            if not existing_ep_nums:
+                ep_num = 1
+            else:
+                for i in range(1, len(existing_ep_nums)+2):
+                    if i not in existing_ep_nums:
+                        ep_num = i
+                        break
+            
+            episode_path = os.path.join(dataset_path, f'episode_{ep_num}.npy')
+            mp4_path = os.path.join(dataset_path, f'episode_{ep_num}.mp4')
             
             np.save(episode_path, logs)
             self.write_mp4(mp4_path)
+            
+            # keep a text file with some metadata
+            metadata_exists = os.path.exists(os.path.join(dataset_path, 'data.csv'))
+            with open(os.path.join(dataset_path, 'data.csv'), 'a') as f:
+                if not metadata_exists:
+                    f.write("episode,task_description,n_frames\n")
+                f.write(f"{ep_num},{task_desc},{len(logs)}\n")
             
             print(f'Trajectory saved to {dataset_path}. Camera frames: {len(self._camera_logs)}, Camera fps (assuming 100 gripper logs/s): {len(self._camera_logs) / (len(self._logs["gripper"]) / 100)} Gripper frames: {len(self._logs["gripper"])} Gripper frames closed: {sum(self._logs["gripper"])}\n')
             print(f'Episode saved to {episode_path}')
