@@ -46,7 +46,7 @@ class Logger:
                 except Exception as e:
                     print(f"Error in camera thread: {e}")
                     self.camera.stop()
-                    raise e
+                    raise
             else:
                 self.camera.stop()
                 
@@ -57,8 +57,8 @@ class Logger:
             self.cam_thread = threading.Thread(target=self.camera_thread_fn, daemon=True)
             self.cam_thread.start()
         except Exception as e:
-            print(f"Camera not connected.")
-            raise e
+            print(f"Camera not connected. {e}")
+            raise
         
     def exit_logging(self, save=True):
         self.fc.is_recording.clear()
