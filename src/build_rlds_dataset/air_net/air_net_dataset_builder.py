@@ -127,6 +127,11 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
             # TODO: check if what follows is correct
             episode = []
             for i in range(len(data)):
+                
+                # assuming the data is at 15Hz, resample to 5Hz
+                if i % 3 != 0:
+                    continue
+                
                 step = data[i]
 
                 pose = step['franka_pose']
