@@ -14,6 +14,12 @@ class OctoRunner(FrankaRunner):
     def __init__(self, model: str="trained_models"):
         self.model = OctoModel.load_pretrained(model, 4999)
         
+        # warmup the model so the first inference is not slow
+        obs = np.array([np.random.rand(11)], dtype=np.float32), np.array([np.random.rand(256, 256, 3)]), np.array([1], dtype=np.float32)
+        obs = {'proprio': obs[0], 'image_primary': obs[1], 'timestep_pad_mask': obs[2]}
+        task = self.model.create_tasks(texts=["warmup"])
+        self.infer(obs, task)
+        
         # print(self.model.dataset_statistics.keys())
         
     def sample_actions(self, model: OctoModel, observations, tasks, rng, argmax=False, temperature=1.0, *args, **kwargs):
@@ -38,7 +44,7 @@ class OctoRunner(FrankaRunner):
             )
         )
         
-    def infer(self, obs, task) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def infer(self, obs, task) -> tuple[np.ndarray, np.ndarray, np.ndarray]:       
         action = np.array(self.policy_fn(obs, task), dtype=np.float64)
         action = action[0]
         
