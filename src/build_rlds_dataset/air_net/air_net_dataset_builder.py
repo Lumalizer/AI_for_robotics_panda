@@ -140,7 +140,7 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
                 state = np.concatenate([step['franka_q'], pos, gripper_state]).astype(np.float32)
                 
                 # terminate_action = np.array([True if i == (len(data) - 1) else False], dtype=np.float32)
-                action = step['action']
+                action = step['action'].astype(np.float32)
                 
                 episode.append({
                     'observation': {
