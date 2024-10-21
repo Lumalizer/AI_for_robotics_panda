@@ -152,7 +152,7 @@ class Logger:
         data = []
                 
         for i in range(len(franka_t)-1):
-            data.append({'franka_t':franka_t[i], 'franka_q':franka_q[i], 'franka_dq':franka_dq[i], 'franka_pose':franka_pose[i], 'gripper_t':gripper_t[i], 'gripper_status':gripper_status[i], 'action':action, 'camera_frame_t':camera_frame_t[i]})
+            data.append({'franka_t':franka_t[i], 'franka_q':franka_q[i], 'franka_dq':franka_dq[i], 'franka_pose':franka_pose[i], 'gripper_t':gripper_t[i], 'gripper_status':gripper_status[i], 'action':action[i], 'camera_frame_t':camera_frame_t[i]})
         
         return data
     
