@@ -128,26 +128,10 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
             episode = []
             for i in range(len(data)):
                 step = data[i]
-                """
-                next_step = data[i + 1]
 
                 pose = step['franka_pose']
                 pos = pose[:3, 3]
-                rot = Rotation.from_matrix(pose[:3, :3])
-
-                next_pose = next_step['franka_pose']
-                next_pos = next_pose[:3, 3]
-                next_rot = Rotation.from_matrix(next_pose[:3, :3])
-
-                delta_xyz = next_pos - pos
-
-                delta_rot = next_rot * rot.inv()
-                delta_y, delta_p, delta_r = delta_rot.as_euler('zyx', degrees=False)
-                """
-                #action = step['action']
-                #delta_xyz = action[:3]
-                #delta_y, delta_p, delta_r = action[3:6]
-                #grip = step['gripper_status']
+                grip = step['gripper_status']
                 
                 # compute Kona language embedding
                 # language_embedding = self._embed([step['task_description']])[0].numpy()
