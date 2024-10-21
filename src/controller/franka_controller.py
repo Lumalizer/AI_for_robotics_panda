@@ -19,7 +19,7 @@ class FrankaController:
                  conversion_factor=0.003, 
                  angle_conversion_factor=0.1, 
                  mouse_axes_conversion=SpaceMouseState(1, 1, 1, 1, 1, 1), 
-                 dataset_name="mk2_test_franka_ds",
+                 dataset_name="test_franka_ds",
                  max_runtime=-1,
                  runner: FrankaRunner=None):
         
