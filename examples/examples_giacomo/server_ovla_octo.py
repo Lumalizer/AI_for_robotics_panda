@@ -76,7 +76,7 @@ def get_openvla_prompt(instruction: str, openvla_path: Union[str, Path]) -> str:
 
 # === Server Interface for OpenVLA ===
 class OpenVLAServer:
-    def __init__(self, openvla_path: Union[str, Path], attn_implementation: Optional[str] = "flash_attention_2") -> Path:
+    def __init__(self, openvla_path: Union[str, Path], attn_implementation: Optional[str] = None) -> Path:
         """
         A simple server for OpenVLA models; exposes `/act` to predict an action for a given image + instruction.
             => Takes in {"image": np.ndarray, "instruction": str, "unnorm_key": Optional[str]}
@@ -111,7 +111,7 @@ class OpenVLAServer:
             image, instruction = payload["image"], payload["instruction"]
             unnorm_key = payload.get("unnorm_key", None)
 
-            image = np.frombuffer(zlib.decompress(base64.b64decode(image)), dtype=np.uint8).reshape((1, 2, 256, 256, 3))
+            image = np.frombuffer(zlib.decompress(base64.b64decode(image)), dtype=np.uint8).reshape((256, 256, 3))
 
             # Run VLA Inference
             prompt = get_openvla_prompt(instruction, self.openvla_path)
@@ -216,7 +216,7 @@ class DeployConfig:
     model = "openvla"                                                   # Model to use:  "octo" or "openvla"
     # model = "octo"
 
-    openvla_path = "trained_models/openvla"                                 # HF Hub Path (or path to local run directory)
+    openvla_path = "/home/u950323/trained-models/openvla-7b+bridge_orig+b8+lr-0.0005+lora-r32+dropout-0.0/"                                # HF Hub Path (or path to local run directory)
     octo_path = "trained_models/octo"
 
     # Server Configuration
@@ -243,3 +243,4 @@ if __name__ == "__main__":
     elif DeployConfig.model == "openvla":
         from transformers import AutoModelForVision2Seq, AutoProcessor
     deploy()
+get_state

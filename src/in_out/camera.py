@@ -58,9 +58,7 @@ To check actual frame rate;  we set 30fps but this only works if your laptop has
 if __name__ == "__main__":
     import time
     cam = Camera()
-    for i in range(100):
-        st = time.time()
-        img = cam.get_frame()
-        en = time.time()
-        print(f"Time taken to get frame: {en-st} s,  ", 1./(en-st), "fps")
-        
+    cam.start()
+    frame = cam.get_frame()
+    img = Image.fromarray(frame)
+    img.show()

@@ -1,18 +1,14 @@
 import gymnasium as gym
 import numpy as np
 import time
-
 from scipy.spatial.transform import Rotation as R
-
 from panda_py import constants
 constants.JOINT_LIMITS_LOWER = np.array([-2.7437, -1.7837, -2.9007, -3.0421, -2.8065, 0.5445, -3.0159])
 constants.JOINT_LIMITS_UPPER = np.array([2.7437, 1.7837, 2.9007, -0.1518, 2.8065, 4.5169, 3.0159])
 import panda_py
 from panda_py import controllers
 from panda_py import libfranka
-
 from multiprocessing import Process, Pipe
-
 
 
 def background_controller_process(franka_ip, action_space, conn):
@@ -58,6 +54,11 @@ def background_controller_process(franka_ip, action_space, conn):
                         gripper_action = new_action[7]
 
                 elif cmd[0] == 'move_to_start':
+                    # fr3.move_to_start()
+                    
+                    # FIXME: move_to_start is blocking/breaking, but below
+                    # tries to move too fast (movement constraint violation)
+                    
                     target_xyz = [3.08059678e-01, -1.82101039e-04,  4.86319269e-01]
                     target_quat = [0.99999257, -0.00275055,  0.00102066,  0.00249987]
                     target_q = [3.76427204e-02, -7.64296584e-01, -1.27612257e-02, -2.35961049e+00, -1.54984590e-02, 1.59347292e+00, 8.35692266e-01]
@@ -77,6 +78,16 @@ def background_controller_process(franka_ip, action_space, conn):
                     state = np.array([*state.q, *pos, *quat, *state.dq, *gripper_status])
 
                     conn.send(state)
+                    
+                elif cmd[0] == 'enable_logging':
+                    fr3.enable_logging(cmd[1])
+                    
+                elif cmd[0] == 'disable_logging':
+                    fr3.disable_logging()
+                    
+                elif cmd[0] == 'get_log':
+                    log = fr3.get_log()
+                    conn.send(log)
 
             if target_xyz is not None and target_quat is not None:
                 # TODO: clip target_xyz to workspace volume
@@ -91,8 +102,6 @@ def background_controller_process(franka_ip, action_space, conn):
 
             
     conn.close()
-
-
 
 
 class RealFrankaEnv(gym.Env):
@@ -118,13 +127,28 @@ class RealFrankaEnv(gym.Env):
         self.parent_conn, self.child_conn = Pipe()
         self.process = Process(target=background_controller_process, args=(franka_ip, action_space, self.child_conn))
         self.process.start()
+        
+    def get_state(self):
+        self.parent_conn.send(('get_state',))
+        state = self.parent_conn.recv()
+        return state
+    
+    def enable_logging(self, buffer_size: int):
+        self.parent_conn.send(('enable_logging', buffer_size))
+        
+    def disable_logging(self):
+        self.parent_conn.send(('disable_logging',))
+        
+    def get_log(self):
+        self.parent_conn.send(('get_log',))
+        log = self.parent_conn.recv()
+        return log
 
     def reset(self, seed=None, **kwargs):
         self.parent_conn.send(('move_to_start',))
         time.sleep(2)
 
-        self.parent_conn.send(('get_state',))
-        state = self.parent_conn.recv()
+        state = self.get_state()
         return state, {}
 
     def step(self, action):
@@ -133,9 +157,7 @@ class RealFrankaEnv(gym.Env):
         if self.step_duration_s > 0:
             time.sleep(self.step_duration_s)
 
-        self.parent_conn.send(('get_state',))
-        state = self.parent_conn.recv()
-
+        state = self.get_state()
         return state, 0, False, False, {}
 
     def close(self):
