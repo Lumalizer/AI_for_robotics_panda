@@ -1,38 +1,34 @@
 import threading
 import time
 import numpy as np
-from scipy.spatial.transform import Rotation
-from panda_py import constants
-constants.JOINT_LIMITS_LOWER = np.array([-2.7437, -1.7837, -2.9007, -3.0421, -2.8065, 0.5445, -3.0159])
-constants.JOINT_LIMITS_UPPER = np.array([2.7437, 1.7837, 2.9007, -0.1518, 2.8065, 4.5169, 3.0159])
-import panda_py
-from panda_py import libfranka
-from panda_py import controllers
+import json_numpy
+json_numpy.patch()
 from in_out.spacemousecontroller import SpaceMouseController, SpaceMouseState
 from in_out.logger import Logger
-from controller.franka_runner import FrankaRunner
 import threading
+import requests
+from controller.realfranka_env import RealFrankaEnv
+import base64
+import zlib
 
 class FrankaController:
-    def __init__(self, 
+    def __init__(self,
+                 env:RealFrankaEnv=None,
                  logger:Logger=None, 
-                 conversion_factor=0.003, 
-                 angle_conversion_factor=0.1, 
+                 conversion_factor=0.03, 
+                 angle_conversion_factor=0.9,
+                 step_duration_s=0.2,
+                 step_duration_s_spacemouse=0.01,
                  mouse_axes_conversion=SpaceMouseState(1, 1, 1, 1, 1, 1), 
                  dataset_name="test_franka_ds",
-                 max_runtime=-1,
-                 runner: FrankaRunner=None):
+                 max_runtime=-1):
         
-        # base setup
-        self.panda = panda_py.Panda("172.16.0.2")
-        self.gripper = libfranka.Gripper("172.16.0.2")
-        self.ctrl = controllers.CartesianImpedance()
+        self.step_duration_s = step_duration_s
+        self.step_duration_s_spacemouse = step_duration_s_spacemouse
+        self.env = RealFrankaEnv(step_duration_s=step_duration_s, action_space="cartesian")
         
         self.dataset_name = dataset_name
         self.max_runtime = max_runtime
-        
-        # inference (octo / openvla)
-        self.runner = runner
         
         # space mouse
         try:
@@ -48,11 +44,7 @@ class FrankaController:
         if logger is None:
             self.logger = Logger(self)
 
-        self.reset_robot_position()
-
-    def reset_robot_position(self):
-        self.panda.move_to_start()
-        time.sleep(1)
+        self.env.reset()
 
     def button_callback(self, state, buttons):
         if buttons[0]:  # left button
@@ -76,72 +68,45 @@ class FrankaController:
             self.is_recording.set()
             print('Recording trajectory...')
         
-    def get_pose_components(self):
-        pose = self.panda.get_pose()
-        # what is the difference to pose = panda_py.fk(q) ?
-        pos = pose[:3, 3]
-        angles = Rotation.from_matrix(pose[:3, :3]).as_quat()
-        return pos, angles
-    
-    @staticmethod
-    def add_rot_to_quat(angles, new_rot, degrees=True):
-        rot = Rotation.from_quat(angles)
-        delta_rot = Rotation.from_euler('zyx', new_rot, degrees=degrees)
-        rot = rot * delta_rot
-        return rot.as_quat()
     
     def get_current_state_for_inference(self) -> tuple[dict, np.ndarray, np.ndarray]:
-        state = self.panda.get_state()
-        pos, angles = self.get_pose_components()
-        
-        # use fk on q
-        # add dq and xyz
-        
         # gripper_status = np.array([self.gripper.read_once().is_grasped])
         # TODO fix gripper blocking
-        gripper_status = np.array([0])
         mask = np.array([1])
         
         img = self.logger.get_camera_frame_resized()
         img = np.expand_dims(img, axis=0)
         
-        state = np.concatenate([state.q, pos, gripper_status])
+        state = self.env.get_state()
         state = np.expand_dims(state, axis=0)
         
-        return {'proprio': state, 'image_primary': img, 'timestep_pad_mask': mask}, pos, angles      
+        return {'proprio': state, 'image_primary': img, 'timestep_pad_mask': mask}   
 
     def enable_spacemouse_control(self, log=True, release_gripper_on_exit=True):
-        self.is_gripping = self.gripper.read_once().is_grasped
-        pos, angles = self.get_pose_components()
-
         print(f"Starting SpaceMouse control for {self.max_runtime} seconds...")
-
-        self.panda.start_controller(self.ctrl)
-        log and self.logger.enter_logging()
+        self.env.step_duration_s = self.step_duration_s_spacemouse
         
-        with self.panda.create_context(frequency=1e2, max_runtime=self.max_runtime) as ctx:
-            while ctx.ok() and self.is_recording.is_set():
-                mouse = self.spacemouse_controller.read()
-    
-                delta_pos = np.array([-mouse.y, mouse.x, mouse.z])
-                delta_rot = np.array([mouse.yaw, mouse.pitch, -mouse.roll])
-
-                pos += delta_pos
-                angles = self.add_rot_to_quat(angles, delta_rot, degrees=True)
-
-                # TODO: log actions
-                self.logger.log_gripper()
-                self.logger.log_action( np.array([*delta_pos, *delta_rot, self.is_gripping]) )
-
-                self.ctrl.set_control(pos, angles)
+        log and self.logger.enter_logging()        
         
-        self.panda.stop_controller()
+        while self.is_recording.is_set():
+            mouse = self.spacemouse_controller.read()
+
+            delta_pos = np.array([-mouse.y, mouse.x, mouse.z])
+            delta_rot = np.array([mouse.yaw, mouse.pitch, -mouse.roll])
+            
+            action = np.array([*delta_pos, *delta_rot, self.is_gripping])
+            
+            self.logger.log_action(action)
+            self.logger.log_gripper()
+            self.env.step(action)
+
         log and self.logger.exit_logging()
         
         if release_gripper_on_exit and self.is_gripping:
             self.toggle_gripper()
             
-        self.reset_robot_position()
+        self.env.step_duration_s = self.step_duration_s
+        self.env.reset()
             
     def collect_demonstrations(self, amount=10):
         print(f"Press left button on the space mouse to start or stop recording a new trajectory. ({amount} remaining)")
@@ -159,8 +124,7 @@ class FrankaController:
                     
             except Exception as e:
                 print(f"Error in recording trajectory: {e}")
-                self.reset_robot_position()
-                self.panda.stop_controller()
+                self.env.reset()
                 self.logger.exit_logging(save=False)
                 
                 if type(e) == RuntimeError:
@@ -170,61 +134,20 @@ class FrankaController:
                 else:
                     raise e
                 
-    
-                
-    def run_with_model(self):
-        if self.runner is None:
-            raise ValueError("Runner not set.")
-        
-        # while True:
-            
-        self.reset_robot_position()
-        
-        # goal_instruction = ""        
-        # print("Current instruction: ", goal_instruction)
-        # if click.confirm("Take a new instruction?", default=True):
-        #     text = input("Instruction?")
-        # goal_instruction = text
-            
-        text="pick up the blue cube"    
-        task = self.runner.model.create_tasks(texts=[text])
-        
+    def run_from_server(self, ip:str="http://0.0.0.0:8000/act"):
         self.logger.enter_logging()
-        
         while not self.logger._camera_logs:
             time.sleep(0.1)
         
-        self.panda.start_controller(self.ctrl)
+        while True:
+            state = self.get_current_state_for_inference()
+            img = base64.b64encode(zlib.compress(state['image_primary'].tobytes())).decode('utf-8')
+            instruction = "pick up the blue block"
+            
+            action = requests.post(ip, json={"image": img, "instruction": instruction}).json()
+            self.env.step(action)
         
-        with self.panda.create_context(frequency=10, max_runtime=-1) as ctx:
-            while ctx.ok():
-                # print(self.runner.model_in_queue.empty(), self.runner.model_out_queue.empty(), self.runner.is_running.is_set())
-                if self.runner.model_in_queue.empty():
-                    if not self.runner.is_running.is_set():
-                        print("putting in queue")
-                        obs, _, _ = self.get_current_state_for_inference()
-                        self.runner.model_in_queue.put((obs, task))
-                        
-                if self.runner.model_out_queue.empty():
-                    continue
-                else:
-                    delta_xyz, delta_rot, grip = self.runner.model_out_queue.get()
-                    print(delta_xyz, delta_rot, grip)
-                
-                obs, pos, angles = self.get_current_state_for_inference()              
-                # delta_xyz, delta_rot, grip = self.runner.infer(obs, task)
-
-                absolute_xyz = pos + delta_xyz
-                absolute_xyz = np.expand_dims(absolute_xyz, axis=1)
-
-                absolute_orientation = self.add_rot_to_quat(angles, delta_rot, degrees=False)
-                absolute_orientation = np.expand_dims(absolute_orientation, axis=1)
-                
-                self.ctrl.set_control(absolute_xyz, absolute_orientation)
-                   
-        self.panda.stop_controller()
         self.logger.exit_logging(save=False)
-
 
 if __name__ == "__main__":    
     fc = FrankaController(dataset_name="test_franka_ds")

@@ -24,7 +24,7 @@ class Logger:
         self.fc.is_recording.set()
         # logs directly from libfranka
         seconds_to_log = (self.fc.max_runtime if self.fc.max_runtime > 0 else 600)
-        self.fc.panda.enable_logging(buffer_size=seconds_to_log * 1000)
+        self.fc.env.enable_logging(buffer_size=seconds_to_log * 1000)
 
         # our own logs (gripper / camera)
         self.clear_logs()
@@ -62,7 +62,7 @@ class Logger:
         
     def exit_logging(self, save=True):
         self.fc.is_recording.clear()
-        self.fc.panda.disable_logging()
+        self.fc.env.disable_logging()
         
         if save:
             logs = self.get_resampled_logs()
@@ -118,7 +118,7 @@ class Logger:
         out.release()
         
     def get_resampled_logs(self):
-        logs = self.fc.panda.get_log()
+        logs = self.fc.env.get_log()
         franka_q = np.array(logs['q'])
         franka_dq = np.array(logs['dq'])
         franka_pose = np.array([panda_py.fk(qq) for qq in franka_q])
