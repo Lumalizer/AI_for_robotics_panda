@@ -243,4 +243,3 @@ if __name__ == "__main__":
     elif DeployConfig.model == "openvla":
         from transformers import AutoModelForVision2Seq, AutoProcessor
     deploy()
-get_state
