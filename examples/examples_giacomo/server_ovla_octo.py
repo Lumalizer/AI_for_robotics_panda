@@ -37,7 +37,6 @@ import json_numpy
 json_numpy.patch()
 
 import numpy as np
-import jax
 
 import zlib
 import base64
@@ -57,9 +56,6 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from PIL import Image
-from transformers import AutoModelForVision2Seq, AutoProcessor
-
-from octo.model.octo_model import OctoModel
 
 
 
@@ -185,7 +181,7 @@ class OctoServer:
             actions = self.model.sample_actions(
                 observation, 
                 task, 
-                unnormalization_statistics=model.dataset_statistics[unnorm_key] if unnorm_key else None, 
+                unnormalization_statistics=self.model.dataset_statistics[unnorm_key] if unnorm_key else None, 
                 rng=jax.random.PRNGKey(0)
             )
             actions = np.array(actions[0]) # remove batch dim
@@ -217,11 +213,11 @@ class OctoServer:
 @dataclass
 class DeployConfig:
     # fmt: off
-    #model = "openvla"                                                   # Model to use:  "octo" or "openvla"
-    model = "octo"
+    model = "openvla"                                                   # Model to use:  "octo" or "openvla"
+    # model = "octo"
 
-    openvla_path = "openvla/openvla-7b"                                 # HF Hub Path (or path to local run directory)
-    octo_path = "/home/spiglerg/Desktop/Dropbox/tmp/oct_2024_octo_temp/out"
+    openvla_path = "trained_models/openvla"                                 # HF Hub Path (or path to local run directory)
+    octo_path = "trained_models/octo"
 
     # Server Configuration
     host: str = "0.0.0.0"                                               # Host IP Address
@@ -241,4 +237,9 @@ def deploy(cfg: DeployConfig) -> None:
         server.run(cfg.host, port=cfg.port)
 
 if __name__ == "__main__":
+    if DeployConfig.model == "octo":
+        from octo.model.octo_model import OctoModel
+        import jax
+    elif DeployConfig.model == "openvla":
+        from transformers import AutoModelForVision2Seq, AutoProcessor
     deploy()
