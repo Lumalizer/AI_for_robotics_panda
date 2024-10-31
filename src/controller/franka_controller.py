@@ -57,9 +57,9 @@ class FrankaController:
         self.is_gripping = not self.is_gripping  # flip early to log correctly
 
         if self.is_gripping:
-            self.gripper.grasp(0, 0.2, 50, 0.04, 0.04)  # grip
+            self.env.close_gripper()
         else:
-            self.gripper.move(0.08, 0.2)
+            self.env.open_gripper()
 
     def toggle_recording(self):
         if self.is_recording.is_set():
@@ -135,6 +135,10 @@ class FrankaController:
                     raise e
                 
     def run_from_server(self, ip:str="http://0.0.0.0:8000/act"):
+        instruction = input("Enter instruction (or keep empty to 'grasp the blue block'): ")
+        if not instruction:
+            instruction = "grasp the blue block"
+        
         self.logger.enter_logging()
         while not self.logger._camera_logs:
             time.sleep(0.1)
@@ -142,7 +146,6 @@ class FrankaController:
         while True:
             state = self.get_current_state_for_inference()
             img = base64.b64encode(zlib.compress(state['image_primary'].tobytes())).decode('utf-8')
-            instruction = "pick up the blue block"
             
             action = requests.post(ip, json={"image": img, "instruction": instruction}).json()
             self.env.step(action)

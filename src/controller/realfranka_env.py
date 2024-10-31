@@ -79,6 +79,12 @@ def background_controller_process(franka_ip, action_space, conn):
 
                     conn.send(state)
                     
+                elif cmd[0] == 'open_gripper':
+                    gripper.move(0.08, 0.2)
+                    
+                elif cmd[0] == 'close_gripper':
+                    gripper.grasp(0, 0.2, 50, 0.04, 0.04)
+                    
                 elif cmd[0] == 'enable_logging':
                     fr3.enable_logging(cmd[1])
                     
@@ -143,6 +149,12 @@ class RealFrankaEnv(gym.Env):
         self.parent_conn.send(('get_log',))
         log = self.parent_conn.recv()
         return log
+    
+    def open_gripper(self):
+        self.parent_conn.send(('open_gripper',))
+        
+    def close_gripper(self):
+        self.parent_conn.send(('close_gripper',))
 
     def reset(self, seed=None, **kwargs):
         self.parent_conn.send(('move_to_start',))
