@@ -153,9 +153,10 @@ class Logger:
         gripper_status = gripper_status[gripper_resampled_indices]
 
         # action is relative, so we should add actions together in between resampled indices
-        action = np.cumsum(action, axis=0)
-        gripper_resampled_indices = gripper_resampled_indices.tolist()
-        action = np.diff(action[ gripper_resampled_indices+[len(action)-1] ],axis=0)
+        #action = np.cumsum(action, axis=0)
+        #gripper_resampled_indices = gripper_resampled_indices.tolist()
+        #action = np.diff(action[ gripper_resampled_indices+[len(action)-1] ],axis=0)
+        action = action[gripper_resampled_indices, ::]
 
         print(len(franka_t), len(gripper_status), len(action))
 
