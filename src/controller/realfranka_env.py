@@ -24,8 +24,16 @@ def background_controller_process(franka_ip, action_space, conn):
         return
 
     # TODO: implement joint controller
+    
+    def start_controller(controller=controller):
+        print(f"Starting {controller.__class__.__name__} controller")
+        fr3.start_controller(controller)
+        
+    def stop_controller():
+        print("Stopping controller")
+        fr3.stop_controller()
 
-    fr3.start_controller(controller)
+    start_controller()
 
     target_xyz = None
     target_quat = None
@@ -58,9 +66,9 @@ def background_controller_process(franka_ip, action_space, conn):
                     target_quat = [0.99999257, -0.00275055,  0.00102066,  0.00249987]
                     target_q = [3.76427204e-02, -7.64296584e-01, -1.27612257e-02, -2.35961049e+00, -1.54984590e-02, 1.59347292e+00, 8.35692266e-01]
 
-                    fr3.stop_controller()
+                    stop_controller()
                     fr3.move_to_start()
-                    fr3.start_controller(controller)
+                    start_controller()
                     
                 elif cmd[0] == 'get_state':
                     # 7x joint angles (q), (3+4)x FK (xyz, quaternion), 7x joint velocities (dq), 1x gripper state
@@ -77,6 +85,9 @@ def background_controller_process(franka_ip, action_space, conn):
                     state = np.array([*state.q, *pos, *quat, *state.dq, *gripper_status])
 
                     conn.send(state)
+                    
+                elif cmd[0] == 'stop_controller':
+                    stop_controller()
                     
                 elif cmd[0] == 'open_gripper':
                     gripper.move(0.08, 0.2)
@@ -148,6 +159,9 @@ class RealFrankaEnv(gym.Env):
         self.parent_conn.send(('get_log',))
         log = self.parent_conn.recv()
         return log
+    
+    def stop_controller(self):
+        self.parent_conn.send(('stop_controller',))
     
     def open_gripper(self):
         self.parent_conn.send(('open_gripper',))

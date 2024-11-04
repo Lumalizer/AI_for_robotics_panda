@@ -63,6 +63,7 @@ class FrankaController:
 
     def toggle_recording(self):
         if self.is_recording.is_set():
+            self.env.stop_controller()
             self.is_recording.clear()
         else:
             self.is_recording.set()
