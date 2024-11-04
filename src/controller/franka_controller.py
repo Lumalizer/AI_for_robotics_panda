@@ -16,7 +16,7 @@ class FrankaController:
                  env:RealFrankaEnv=None,
                  logger:Logger=None, 
                  conversion_factor=0.03, 
-                 angle_conversion_factor=0.9,
+                 angle_conversion_factor=25,
                  step_duration_s=0.2,
                  step_duration_s_spacemouse=0.01,
                  mouse_axes_conversion=SpaceMouseState(1, 1, 1, 1, 1, 1), 
