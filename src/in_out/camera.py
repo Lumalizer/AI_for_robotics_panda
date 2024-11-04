@@ -43,6 +43,10 @@ class Camera:
         if not self.active:
             self.active = True
             self.pipeline.start()
+
+            for i in range(5):
+                frames = self.pipeline.wait_for_frames()
+            print('Camera started')
     
     def stop(self):
         if self.active:
