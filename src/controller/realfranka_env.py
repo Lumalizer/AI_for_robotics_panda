@@ -45,7 +45,7 @@ def background_controller_process(franka_ip, action_space, conn):
                         pose = fr3.get_pose().copy()
                         x = pose[0:3, 3]
                         rot = R.from_matrix(pose[0:3, 0:3])
-                        delta_rot = R.from_euler('zyx', delta_rot)
+                        delta_rot = R.from_euler('zyx', delta_rot, degrees=True)
 
                         target_xyz = np.array(x + delta_x)
                         target_quat = (rot * delta_rot).as_quat()
@@ -54,15 +54,14 @@ def background_controller_process(franka_ip, action_space, conn):
                         gripper_action = new_action[7]
 
                 elif cmd[0] == 'move_to_start':
-                    # fr3.move_to_start()
-                    
-                    # FIXME: move_to_start is blocking/breaking, but below
-                    # tries to move too fast (movement constraint violation)
-                    
                     target_xyz = [3.08059678e-01, -1.82101039e-04,  4.86319269e-01]
                     target_quat = [0.99999257, -0.00275055,  0.00102066,  0.00249987]
                     target_q = [3.76427204e-02, -7.64296584e-01, -1.27612257e-02, -2.35961049e+00, -1.54984590e-02, 1.59347292e+00, 8.35692266e-01]
 
+                    fr3.stop_controller()
+                    fr3.move_to_start()
+                    fr3.start_controller(controller)
+                    
                 elif cmd[0] == 'get_state':
                     # 7x joint angles (q), (3+4)x FK (xyz, quaternion), 7x joint velocities (dq), 1x gripper state
                     state = fr3.get_state()
