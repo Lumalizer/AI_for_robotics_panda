@@ -96,8 +96,8 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
         return {
             # change the path to match the datasets subfolder
             
-            'train': self._generate_examples(path='../../../datasets/test_franka_ds/train/episode_*.npy'),
-            'val': self._generate_examples(path='../../../datasets/test_franka_ds/val/episode_*.npy'),
+            'train': self._generate_examples(path='../../../datasets/hover_diagnostic_ds/episode_*.npy'),
+            # 'val': self._generate_examples(path='../../../datasets/test_franka_ds/val/episode_*.npy'),
         }
 
     def _generate_examples(self, path) -> Iterator[Tuple[str, Any]]:

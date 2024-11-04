@@ -20,7 +20,7 @@ class FrankaController:
                  step_duration_s=0.2,
                  step_duration_s_spacemouse=0.01,
                  mouse_axes_conversion=SpaceMouseState(1, 1, 1, 1, 1, 1), 
-                 dataset_name="test_franka_ds",
+                 dataset_name="no_name",
                  max_runtime=-1):
         
         self.step_duration_s = step_duration_s
@@ -152,9 +152,3 @@ class FrankaController:
             self.env.step(action)
         
         self.logger.exit_logging(save=False)
-
-if __name__ == "__main__":    
-    fc = FrankaController(dataset_name="test_franka_ds")
-    fc.collect_demonstrations()
-    
-    
