@@ -14,6 +14,8 @@ class Logger:
         
         self.task_description_required = task_description_required
         self.clear_logs()
+
+        self.camera.start()
         
     def clear_logs(self):
         self._logs = {'gripper': [0], 'time': [time.time_ns()], 'action': [np.zeros(7)]}
@@ -28,8 +30,6 @@ class Logger:
 
         # our own logs (gripper / camera)
         self.clear_logs()
-
-        self.camera.start()
         
         if not hasattr(self, 'cam_thread'):
             self._start_camera_thread()
@@ -37,8 +37,6 @@ class Logger:
 
     def camera_thread_fn(self):
         while True:
-            if self.fc.is_recording.is_set():
-                self.camera.start()
             while self.fc.is_recording.is_set():
                 try:
                     self._camera_logs.append(self.camera.get_frame())
@@ -47,8 +45,8 @@ class Logger:
                     print(f"Error in camera thread: {e}")
                     self.camera.stop()
                     raise
-            else:
-                self.camera.stop()
+            #else:
+            #    self.camera.stop()
                 
             time.sleep(0.01)
 
