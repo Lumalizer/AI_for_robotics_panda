@@ -16,7 +16,7 @@ class FrankaController:
                  env:RealFrankaEnv=None,
                  logger:Logger=None, 
                  conversion_factor=0.03, 
-                 angle_conversion_factor=25,
+                 angle_conversion_factor=15,
                  step_duration_s=0.2,
                  step_duration_s_spacemouse=0.01,
                  mouse_axes_conversion=SpaceMouseState(1, 1, 1, 1, 1, 1), 
@@ -101,13 +101,18 @@ class FrankaController:
             self.logger.log_gripper()
             self.env.step(action)
 
-        log and self.logger.exit_logging()
+        if log:
+            recorded_successfully = self.logger.exit_logging()
+        else:
+            recorded_successfully = False
         
         if release_gripper_on_exit and self.is_gripping:
             self.toggle_gripper()
             
         self.env.step_duration_s = self.step_duration_s
         self.env.reset()
+        
+        return recorded_successfully
             
     def collect_demonstrations(self, amount=10):
         print(f"Press left button on the space mouse to start or stop recording a new trajectory. ({amount} remaining)")
@@ -118,8 +123,8 @@ class FrankaController:
                 time.sleep(0.001)
 
                 if self.is_recording.is_set():
-                    self.enable_spacemouse_control()
-                    amount -= 1
+                    if self.enable_spacemouse_control():
+                        amount -= 1
                     
                     print(f"Press left button on the space mouse to start or stop recording a new trajectory. ({amount} remaining)")
                     

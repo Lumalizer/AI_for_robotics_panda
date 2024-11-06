@@ -12,6 +12,8 @@ class Logger:
         self.camera = Camera()
         self.fps = fps
         
+        self.previous_task_desc = ""
+        
         self.task_description_required = task_description_required
         self.clear_logs()
 
@@ -66,10 +68,15 @@ class Logger:
             logs = self.get_resampled_logs()
             
             if self.task_description_required:
-                task_desc = input("Enter task description such as 'pick up the red cube',  or press enter to RE-RECORD this episode: ")
-                if not task_desc:
-                    return
+                task_desc = input(f"""Enter task description such as 'pick up the red cube'
+                                  or press ENTER to re-use the previous task description: ({self.previous_task_desc})
+                                  or type 'skip' to skip saving this trajectory: """).strip()
+                if task_desc == 'skip':
+                    return False
+                elif not task_desc:
+                    task_desc = self.previous_task_desc
                 
+                self.previous_task_desc = task_desc
                 for log in logs:
                     log['task_description'] = task_desc
             
@@ -103,6 +110,8 @@ class Logger:
             
             print(f'Trajectory saved to {dataset_path}. Camera frames: {len(self._camera_logs)}, Camera fps (assuming 100 gripper logs/s): {len(self._camera_logs) / (len(self._logs["gripper"]) / 100)} Gripper frames: {len(self._logs["gripper"])} Gripper frames closed: {sum(self._logs["gripper"])}\n')
             print(f'Episode saved to {episode_path}')
+            
+            return True
             
     def write_mp4(self, camera_path): # might be distorting the colors of the frames while creating the mp4
         frame_height, frame_width = self._camera_logs[0].shape[:2]
