@@ -1,7 +1,8 @@
 # First import the library
 import pyrealsense2 as rs
 import numpy as np
-from PIL import Image
+import time
+import cv2
 
 class Camera:
     def __init__(self):
@@ -52,6 +53,18 @@ class Camera:
         if self.active:
             self.active = False
             self.pipeline.stop()
+            
+    def stream_video_to_new_window(self):
+        while True:
+            frame = self.get_frame()
+            if frame is not None:
+                frame = np.array(frame)
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                cv2.imshow('Video Feed', frame)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+        
+        cv2.destroyAllWindows()
 
 
 
@@ -60,9 +73,6 @@ class Camera:
 To check actual frame rate;  we set 30fps but this only works if your laptop has a usb3 (blue) port, if not it sets it to 15hz which is not good enough for us.
 """
 if __name__ == "__main__":
-    import time
     cam = Camera()
     cam.start()
-    frame = cam.get_frame()
-    img = Image.fromarray(frame)
-    img.show()
+    cam.stream_video_to_new_window()
