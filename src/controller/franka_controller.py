@@ -75,7 +75,7 @@ class FrankaController:
         # TODO fix gripper blocking
         mask = np.array([1])
         
-        img = self.logger.get_camera_frame_resized()
+        img = self.logger.camera.logs[-1]
         img = np.expand_dims(img, axis=0)
         
         state = self.env.get_state()
@@ -146,7 +146,7 @@ class FrankaController:
             instruction = "grasp the blue block"
         
         self.logger.enter_logging()
-        while not self.logger._camera_logs:
+        while not self.logger.camera.logs:
             time.sleep(0.1)
         
         while True:

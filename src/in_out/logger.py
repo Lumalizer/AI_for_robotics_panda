@@ -3,13 +3,14 @@ import os
 import cv2
 import numpy as np
 import panda_py
-from in_out.camera import Camera
-import threading
+from in_out.camera.RealSenseCamera import RealSenseCamera
+from in_out.camera.LogitechCamera import LogitechCamera
+import matplotlib.pyplot as plt
 
 class Logger:
-    def __init__(self, fc: 'FrankaController', task_description_required=True, fps=15.0) -> None:
+    def __init__(self, fc: 'FrankaController', task_description_required=True, fps=30.0) -> None:
         self.fc = fc
-        self.camera = Camera()
+        self.camera = LogitechCamera(is_recording=self.fc.is_recording)
         self.fps = fps
         
         self.previous_task_desc = ""
@@ -21,8 +22,7 @@ class Logger:
         
     def clear_logs(self):
         self._logs = {'gripper': [0], 'time': [time.time_ns()], 'action': [np.zeros(7)]}
-        self._camera_logs = []
-        self._camera_time = []
+        self.camera.clear_logs()
         
     def enter_logging(self):
         self.fc.is_recording.set()
@@ -33,32 +33,8 @@ class Logger:
         # our own logs (gripper / camera)
         self.clear_logs()
         
-        if not hasattr(self, 'cam_thread'):
-            self._start_camera_thread()
-            
-
-    def camera_thread_fn(self):
-        while True:
-            while self.fc.is_recording.is_set():
-                try:
-                    self._camera_logs.append(self.camera.get_frame())
-                    self._camera_time.append(time.time_ns())
-                except Exception as e:
-                    print(f"Error in camera thread: {e}")
-                    self.camera.stop()
-                    raise
-            #else:
-            #    self.camera.stop()
-                
-            time.sleep(0.01)
-
-    def _start_camera_thread(self):
-        try:
-            self.cam_thread = threading.Thread(target=self.camera_thread_fn, daemon=True)
-            self.cam_thread.start()
-        except Exception as e:
-            print(f"Camera not connected. {e}")
-            raise
+        if not hasattr(self.camera, 'cam_thread'):
+            self.camera.start_camera_thread()
         
     def exit_logging(self, save=True):
         self.fc.is_recording.clear()
@@ -108,19 +84,18 @@ class Logger:
                     f.write("episode,task_description,n_frames\n")
                 f.write(f"{ep_num},{task_desc},{len(logs)}\n")
             
-            print(f'Trajectory saved to {dataset_path}. Camera frames: {len(self._camera_logs)}, Camera fps (assuming 100 gripper logs/s): {len(self._camera_logs) / (len(self._logs["gripper"]) / 100)} Gripper frames: {len(self._logs["gripper"])} Gripper frames closed: {sum(self._logs["gripper"])}\n')
+            print(f'Trajectory saved to {dataset_path}. Camera frames: {len(self.camera.logs)}, Camera fps (assuming 100 gripper logs/s): {len(self.camera.logs) / (len(self._logs["gripper"]) / 100)} Gripper frames: {len(self._logs["gripper"])} Gripper frames closed: {sum(self._logs["gripper"])}\n')
             print(f'Episode saved to {episode_path}')
             
             return True
             
     def write_mp4(self, camera_path): # might be distorting the colors of the frames while creating the mp4
-        frame_height, frame_width = self._camera_logs[0].shape[:2]
+        frame_height, frame_width = self.camera.logs[0].shape[:2]
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')  
         out = cv2.VideoWriter(camera_path, fourcc, self.fps, (frame_width, frame_height))
 
-        for frame in self._camera_logs:
-            bgr_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-            out.write(bgr_frame)
+        for frame in self.camera.logs:
+            out.write(frame)
             
         out.release()
         
@@ -139,7 +114,7 @@ class Logger:
         gripper_t = np.array(self._logs['time'])
         gripper_t = (gripper_t - gripper_t[0]) / 1e9
 
-        camera_frame_t = np.array(self._camera_time)
+        camera_frame_t = np.array(self.camera.time)
         camera_frame_t = (camera_frame_t - self._logs['time'][0]) / 1e9
         
         # now we re-sample gripper (gripper_status / gripper_t) and franka_* to camera_frame_t (i.e., 30 Hz) by looking for the indices whose timestamp is closest to the camera_frame_t
@@ -151,24 +126,27 @@ class Logger:
         if gripper_resampled_indices[-1] == len(gripper_t):
             gripper_resampled_indices[-1] = len(gripper_t) - 1
 
-        #print(len(franka_t), len(franka_resampled_indices), franka_resampled_indices[-1], len(action))
-
         franka_t = franka_t[franka_resampled_indices]
         franka_q = franka_q[franka_resampled_indices]
         franka_dq = franka_dq[franka_resampled_indices]
         franka_pose = franka_pose[franka_resampled_indices]
-
+        
         gripper_t = gripper_t[gripper_resampled_indices]
         gripper_status = gripper_status[gripper_resampled_indices]
-
-        # action is relative, so we should add actions together in between resampled indices
-        #action = np.cumsum(action, axis=0)
-        #gripper_resampled_indices = gripper_resampled_indices.tolist()
-        #action = np.diff(action[ gripper_resampled_indices+[len(action)-1] ],axis=0)
-        action = action[gripper_resampled_indices, ::]
-
-        print(len(franka_t), len(gripper_status), len(action))
-
+        action = action[gripper_resampled_indices, ::]        
+        
+        # remove near-zero velocity frames
+        has_nearzero_velocity = lambda x: np.sum(np.abs(x)) < 0.02
+        indexes_to_keep = [i for i in range(len(franka_dq)) if not has_nearzero_velocity(franka_dq[i])]
+        
+        franka_t = franka_t[indexes_to_keep]
+        franka_q = franka_q[indexes_to_keep]
+        franka_dq = franka_dq[indexes_to_keep]
+        franka_pose = franka_pose[indexes_to_keep]
+        gripper_t = gripper_t[indexes_to_keep]
+        gripper_status = gripper_status[indexes_to_keep]
+        action = action[indexes_to_keep]
+        camera_frame_t = camera_frame_t[indexes_to_keep]
 
         # Now we have all the data we need, timestamp-aligned and sub-sampled at the same frame rate as the camera (ideally, 30Hz, if data collected through
         # usb-3 port)
@@ -178,9 +156,21 @@ class Logger:
         data = []
                 
         for i in range(len(franka_t)-1):
-            data.append({'franka_t':franka_t[i], 'franka_q':franka_q[i], 'franka_dq':franka_dq[i], 'franka_pose':franka_pose[i], 'gripper_t':gripper_t[i], 'gripper_status':gripper_status[i], 'action':action[i], 'camera_frame_t':camera_frame_t[i]})
+            data.append({'franka_t':franka_t[i], 'franka_q':franka_q[i], 'franka_dq':franka_dq[i], 
+                         'franka_pose':franka_pose[i], 'gripper_t':gripper_t[i], 'gripper_status':gripper_status[i], 
+                         'action':action[i], 'camera_frame_t':camera_frame_t[i]})
         
         return data
+
+    def plot_velocity_sums(self, franka_dq):
+        vels = []
+        for i in range(len(franka_dq)):
+            # add sum of velocities
+            sum_vel = np.sum(np.abs(franka_dq[i]))
+            vels.append(sum_vel)
+
+        plt.plot(vels)
+        plt.show()
     
     def log_gripper(self):
         # TODO : gripper.read_once() is blocking, check if solution is OK
@@ -190,11 +180,6 @@ class Logger:
 
     def log_action(self, action):
         self._logs['action'].append(action)
-        
-    def get_camera_frame_resized(self, size=(256, 256)):
-        image_primary = self._camera_logs[-1]
-        image_primary = cv2.resize(image_primary, size)
-        return image_primary
         
 
 if __name__ == "__main__":

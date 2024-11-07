@@ -1,11 +1,12 @@
 # First import the library
 import pyrealsense2 as rs
 import numpy as np
-import time
+from in_out.camera.BaseCamera import BaseCamera
 import cv2
 
-class Camera:
-    def __init__(self):
+class RealSenseCamera(BaseCamera):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         # reset devices to fix errors
         ctx = rs.context()
         devices = ctx.query_devices()
@@ -19,16 +20,11 @@ class Camera:
         self.pipeline_wrapper = rs.pipeline_wrapper(self.pipeline)
         self.pipeline_profile = self.config.resolve(self.pipeline_wrapper)
 
-        self.config.enable_stream(rs.stream.color, 640, 480, rs.format.rgb8, 30)
-
-        self.active = False
-        # self.pipeline.start()
+        self.config.enable_stream(rs.stream.color, 256, 256, rs.format.rgb8, 30)
 
     def get_frame(self):
         frames = self.pipeline.wait_for_frames()
         rgb = frames.get_color_frame()
-        
-        # print("camera frame (should increase): ", rgb.get_frame_number())
 
         if not rgb: 
             return None
@@ -37,8 +33,11 @@ class Camera:
         
         # need to copy to avoid filling the buffer and getting duplicate frames
         np_image = np.asanyarray(rgb_data)
+        
+        # convert to the right color format
+        np_image = cv2.cvtColor(np_image.copy(), cv2.COLOR_BGR2RGB)
 
-        return np_image.copy()
+        return np_image
     
     def start(self):
         if not self.active:
@@ -53,26 +52,10 @@ class Camera:
         if self.active:
             self.active = False
             self.pipeline.stop()
-            
-    def stream_video_to_new_window(self):
-        while True:
-            frame = self.get_frame()
-            if frame is not None:
-                frame = np.array(frame)
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                cv2.imshow('Video Feed', frame)
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    break
-        
-        cv2.destroyAllWindows()
 
 
 
-
-"""
-To check actual frame rate;  we set 30fps but this only works if your laptop has a usb3 (blue) port, if not it sets it to 15hz which is not good enough for us.
-"""
 if __name__ == "__main__":
-    cam = Camera()
+    cam = RealSenseCamera()
     cam.start()
     cam.stream_video_to_new_window()
