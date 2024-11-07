@@ -133,7 +133,7 @@ class Logger:
         
         gripper_t = gripper_t[gripper_resampled_indices]
         gripper_status = gripper_status[gripper_resampled_indices]
-        action = action[gripper_resampled_indices, ::]        
+        action = action[gripper_resampled_indices, ::]  
         
         # remove near-zero velocity frames
         has_nearzero_velocity = lambda x: np.sum(np.abs(x)) < 0.02
@@ -146,7 +146,7 @@ class Logger:
         gripper_t = gripper_t[indexes_to_keep]
         gripper_status = gripper_status[indexes_to_keep]
         action = action[indexes_to_keep]
-        camera_frame_t = camera_frame_t[indexes_to_keep]
+        camera_frame_t = camera_frame_t[indexes_to_keep]      
 
         # Now we have all the data we need, timestamp-aligned and sub-sampled at the same frame rate as the camera (ideally, 30Hz, if data collected through
         # usb-3 port)
