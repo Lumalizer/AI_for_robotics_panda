@@ -12,9 +12,15 @@ class LogitechCamera(BaseCamera):
         fourcc = cv2.VideoWriter_fourcc('M','J','P','G')
         cap = cv2.VideoCapture(0)
         cap.set(cv2.CAP_PROP_FOURCC, fourcc)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 256)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 256)
-        cap.set(cv2.CAP_PROP_FPS, 60)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 300)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 300)
+        cap.set(cv2.CAP_PROP_FPS, 30)
+        
+        # we will not receive the exact aspect ratio that we want
+        # so need to crop / resize later
+        actual_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+        actual_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        self.aspect_diff = actual_width - actual_height
         
         self.cap = cap
         
@@ -22,6 +28,8 @@ class LogitechCamera(BaseCamera):
         ret, frame = self.cap.read()
         if not ret:
             return None
+        frame = frame[:, int(self.aspect_diff/2):int(-self.aspect_diff/2)]
+        frame = cv2.resize(frame, (256, 256))
         return frame
 
     def start(self):

@@ -10,9 +10,14 @@ from scipy.spatial.transform import Rotation
 class AirNet(tfds.core.GeneratorBasedBuilder):
     """DatasetBuilder for example dataset."""
 
-    VERSION = tfds.core.Version('1.0.0')
+    VERSION = tfds.core.Version('1.0.5')
     RELEASE_NOTES = {
       '1.0.0': 'Initial release.',
+      '1.0.1': 'hover_simple_ds',
+      '1.0.2': 'hover_simple_ds_extend',
+      '1.0.3': 'hover_blue_logi',
+      '1.0.4': 'hover_blue_logi2',
+      '1.0.5': 'hover_blue_logi3',
     }
 
     def __init__(self, *args, **kwargs):
@@ -26,7 +31,7 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
                 'steps': tfds.features.Dataset({
                     'observation': tfds.features.FeaturesDict({
                         'image': tfds.features.Image(
-                            shape=(480, 640, 3),
+                            shape=(256, 256, 3),
                             dtype=np.uint8,
                             encoding_format='png',
                             doc='Main camera RGB observation.',
@@ -96,7 +101,7 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
         return {
             # change the path to match the datasets subfolder
             
-            'train': self._generate_examples(path='../../../datasets/hover_diagnostic_ds/episode_*.npy'),
+            'train': self._generate_examples(path='../../../datasets/hover_blue_logi3/episode_*.npy'),
             # 'val': self._generate_examples(path='../../../datasets/test_franka_ds/val/episode_*.npy'),
         }
 

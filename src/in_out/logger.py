@@ -8,16 +8,13 @@ from in_out.camera.LogitechCamera import LogitechCamera
 import matplotlib.pyplot as plt
 
 class Logger:
-    def __init__(self, fc: 'FrankaController', task_description_required=True, fps=30.0) -> None:
+    def __init__(self, fc: 'FrankaController', fps=30.0) -> None:
         self.fc = fc
         self.camera = LogitechCamera(is_recording=self.fc.is_recording)
         self.fps = fps
         
         self.previous_task_desc = ""
-        
-        self.task_description_required = task_description_required
         self.clear_logs()
-
         self.camera.start()
         
     def clear_logs(self):
@@ -43,18 +40,17 @@ class Logger:
         if save:
             logs = self.get_resampled_logs()
             
-            if self.task_description_required:
-                task_desc = input(f"""Enter task description such as 'pick up the red cube'
-                                  or press ENTER to re-use the previous task description: ({self.previous_task_desc})
-                                  or type 'skip' to skip saving this trajectory: """).strip()
-                if task_desc == 'skip':
-                    return False
-                elif not task_desc:
-                    task_desc = self.previous_task_desc
-                
-                self.previous_task_desc = task_desc
-                for log in logs:
-                    log['task_description'] = task_desc
+            task_desc = input(f"""Enter task description such as 'pick up the red cube'
+                                or press ENTER to re-use the previous task description: ({self.previous_task_desc})
+                                or type 'skip' to skip saving this trajectory: """).strip()
+            if task_desc == 'skip':
+                return False
+            elif not task_desc:
+                task_desc = self.previous_task_desc
+            
+            self.previous_task_desc = task_desc
+            for log in logs:
+                log['task_description'] = task_desc
             
             dataset_path = os.path.join("datasets", self.fc.dataset_name)
             os.makedirs(dataset_path, exist_ok=True)
@@ -89,7 +85,7 @@ class Logger:
             
             return True
             
-    def write_mp4(self, camera_path): # might be distorting the colors of the frames while creating the mp4
+    def write_mp4(self, camera_path):
         frame_height, frame_width = self.camera.logs[0].shape[:2]
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')  
         out = cv2.VideoWriter(camera_path, fourcc, self.fps, (frame_width, frame_height))
