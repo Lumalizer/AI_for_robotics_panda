@@ -20,7 +20,7 @@ class RealSenseCamera(BaseCamera):
         self.pipeline_wrapper = rs.pipeline_wrapper(self.pipeline)
         self.pipeline_profile = self.config.resolve(self.pipeline_wrapper)
 
-        self.config.enable_stream(rs.stream.color, 256, 256, rs.format.rgb8, 30)
+        self.config.enable_stream(rs.stream.color, 256, 256, rs.format.rgb8, self.fps)
 
     def get_frame(self):
         frames = self.pipeline.wait_for_frames()

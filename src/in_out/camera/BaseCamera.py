@@ -4,12 +4,13 @@ import time
 import threading
 
 class BaseCamera:
-    def __init__(self, is_recording: threading.Event = None):
+    def __init__(self, is_recording: threading.Event = None, fps: int = 30):
         self.active = False
         self.frames = []
         self.logs = []
         self.time = []
         self.is_recording = is_recording
+        self.fps = fps
 
     def get_frame(self):
         raise NotImplementedError

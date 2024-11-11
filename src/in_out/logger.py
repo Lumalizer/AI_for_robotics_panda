@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 class Logger:
     def __init__(self, fc: 'FrankaController', fps) -> None:
         self.fc = fc
-        self.camera = LogitechCamera(is_recording=self.fc.is_recording)
+        self.camera = LogitechCamera(is_recording=self.fc.is_recording, fps=fps)
         self.fps = fps
         
         self.previous_task_desc = ""

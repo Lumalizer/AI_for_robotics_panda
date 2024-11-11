@@ -14,7 +14,7 @@ class LogitechCamera(BaseCamera):
         cap.set(cv2.CAP_PROP_FOURCC, fourcc)
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 300)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 300)
-        cap.set(cv2.CAP_PROP_FPS, 30)
+        cap.set(cv2.CAP_PROP_FPS, self.fps)
         
         # we will not receive the exact aspect ratio that we want
         # so need to crop / resize later
