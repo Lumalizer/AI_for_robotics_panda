@@ -10,6 +10,7 @@ import requests
 from controller.realfranka_env import RealFrankaEnv
 import base64
 import zlib
+import time
 
 class FrankaController:
     def __init__(self,
@@ -40,6 +41,7 @@ class FrankaController:
         # logs / recording
         self.is_gripping = False
         self.is_recording = threading.Event()
+        self.is_pre_controlling = threading.Event() # allows moving the arm before recording logs
         
         if logger is None:
             self.logger = Logger(self)
@@ -62,6 +64,8 @@ class FrankaController:
             self.env.open_gripper()
 
     def toggle_recording(self):
+        self.is_pre_controlling.clear()
+        
         if self.is_recording.is_set():
             self.env.stop_controller()
             self.is_recording.clear()
@@ -83,13 +87,13 @@ class FrankaController:
         
         return {'proprio': state, 'image_primary': img, 'timestep_pad_mask': mask}   
 
-    def enable_spacemouse_control(self, log=True, release_gripper_on_exit=True):
-        print(f"Starting SpaceMouse control for {self.max_runtime} seconds...")
+    def enable_spacemouse_control(self, event: threading.Event, log=True, release_gripper_on_exit=True, reset=True):
+        # print(f"Starting SpaceMouse control for {self.max_runtime} seconds...")
         self.env.step_duration_s = self.step_duration_s_spacemouse
         
         log and self.logger.enter_logging()        
         
-        while self.is_recording.is_set():
+        while event.is_set():
             mouse = self.spacemouse_controller.read()
 
             delta_pos = np.array([-mouse.y, mouse.x, mouse.z])
@@ -102,6 +106,7 @@ class FrankaController:
             self.env.step(action)
 
         if log:
+            time.sleep(1)
             recorded_successfully = self.logger.exit_logging()
         else:
             recorded_successfully = False
@@ -110,23 +115,29 @@ class FrankaController:
             self.toggle_gripper()
             
         self.env.step_duration_s = self.step_duration_s
-        self.env.reset()
+        
+        if reset:
+            self.env.reset()
         
         return recorded_successfully
             
-    def collect_demonstrations(self, amount=10):
-        print(f"Press left button on the space mouse to start or stop recording a new trajectory. ({amount} remaining)")
-        
+    def collect_demonstrations(self, amount=10, enable_pre_control=True):
         while amount:
             try:
                 self.spacemouse_controller.read()
+                
+                if enable_pre_control:
+                    self.is_pre_controlling.set()
+                    print(f"\033[93mPre-control enabled.\033[0m Move the arm into desired recording start position. \nPress \033[92mleft button\033[0m on the space mouse to start or stop recording a new trajectory. ({amount} remaining)")
+                    self.enable_spacemouse_control(self.is_pre_controlling, log=False, release_gripper_on_exit=False, reset=False)
+                else:
+                    print(f"Press \033[92mleft button\033[0m on the space mouse to start or stop recording a new trajectory. ({amount} remaining)")
+                
                 time.sleep(0.001)
 
                 if self.is_recording.is_set():
-                    if self.enable_spacemouse_control():
+                    if self.enable_spacemouse_control(self.is_recording):
                         amount -= 1
-                    
-                    print(f"Press left button on the space mouse to start or stop recording a new trajectory. ({amount} remaining)")
                     
             except Exception as e:
                 print(f"Error in recording trajectory: {e}")
@@ -135,7 +146,6 @@ class FrankaController:
                 
                 if type(e) == RuntimeError:
                     print("attempting to restart...\n\n")
-                    print(f"Press left button on the space mouse to start or stop recording a new trajectory. ({amount} remaining)")
                     self.is_recording.clear()
                 else:
                     raise e
@@ -153,7 +163,11 @@ class FrankaController:
             state = self.get_current_state_for_inference()
             img = base64.b64encode(zlib.compress(state['image_primary'].tobytes())).decode('utf-8')
             
-            action = requests.post(ip, json={"image": img, "instruction": instruction}).json()
-            self.env.step(action)
+            try:
+                action = requests.post(ip, json={"image": img, "instruction": instruction}).json()
+                self.env.step(action)
+            except Exception as e:
+                print(f"Error in server communication: {e}")
+                break
         
         self.logger.exit_logging(save=False)
