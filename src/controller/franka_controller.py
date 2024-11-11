@@ -16,44 +16,44 @@ class FrankaController:
     def __init__(self,
                  env:RealFrankaEnv=None,
                  logger:Logger=None, 
+                 dataset_name="no_name",
+                 
                  conversion_factor=0.03, 
                  angle_conversion_factor=15,
+                 mouse_axes_conversion=SpaceMouseState(1, 1, 1, 1, 1, 1),
+                 
                  step_duration_s=0.2,
                  step_duration_s_spacemouse=0.01,
-                 mouse_axes_conversion=SpaceMouseState(1, 1, 1, 1, 1, 1), 
-                 dataset_name="no_name",
+                 
+                 fps=30,
                  max_runtime=-1):
+        
+        self.env = env if env else RealFrankaEnv(step_duration_s=step_duration_s, action_space="cartesian")
+        
+        self.is_gripping = False
+        self.is_pre_controlling = threading.Event() # allows moving the arm before recording logs
+        self.is_recording = threading.Event()
+        
+        self.logger = logger if logger else Logger(self, fps)
+        self.dataset_name = dataset_name
         
         self.step_duration_s = step_duration_s
         self.step_duration_s_spacemouse = step_duration_s_spacemouse
-        self.env = RealFrankaEnv(step_duration_s=step_duration_s, action_space="cartesian")
         
-        self.dataset_name = dataset_name
         self.max_runtime = max_runtime
+        self.fps = fps
         
         # space mouse
         try:
-            self.spacemouse_controller = SpaceMouseController(self.button_callback, conversion_factor, angle_conversion_factor, mouse_axes_conversion)
+            self.spacemouse_controller = SpaceMouseController(
+                conversion_factor, angle_conversion_factor, mouse_axes_conversion, 
+                button_left_callback=self.toggle_recording, button_right_callback=self.toggle_gripper)
         except Exception as e:
             self.spacemouse_controller = None
             print("SpaceMouse not connected.")
         
-        # logs / recording
-        self.is_gripping = False
-        self.is_recording = threading.Event()
-        self.is_pre_controlling = threading.Event() # allows moving the arm before recording logs
-        
-        if logger is None:
-            self.logger = Logger(self)
 
         self.env.reset()
-
-    def button_callback(self, state, buttons):
-        if buttons[0]:  # left button
-            self.toggle_recording()
-        
-        if buttons[1]:  # right button
-            self.toggle_gripper() 
 
     def toggle_gripper(self):
         self.is_gripping = not self.is_gripping  # flip early to log correctly
@@ -71,45 +71,34 @@ class FrankaController:
             self.is_recording.clear()
         else:
             self.is_recording.set()
-            print('Recording trajectory...')
+            print('Recording trajectory............\n')
         
-    
-    def get_current_state_for_inference(self) -> tuple[dict, np.ndarray, np.ndarray]:
-        # gripper_status = np.array([self.gripper.read_once().is_grasped])
-        # TODO fix gripper blocking
-        mask = np.array([1])
-        
+    def get_current_state_for_inference(self) -> tuple[dict, np.ndarray, np.ndarray]:     
         img = self.logger.camera.logs[-1]
         img = np.expand_dims(img, axis=0)
         
         state = self.env.get_state()
         state = np.expand_dims(state, axis=0)
         
-        return {'proprio': state, 'image_primary': img, 'timestep_pad_mask': mask}   
+        return {'proprio': state, 'image_primary': img}   
 
     def enable_spacemouse_control(self, event: threading.Event, log=True, release_gripper_on_exit=True, reset=True):
         # print(f"Starting SpaceMouse control for {self.max_runtime} seconds...")
         self.env.step_duration_s = self.step_duration_s_spacemouse
+        recorded_successfully = False
         
         log and self.logger.enter_logging()        
         
         while event.is_set():
-            mouse = self.spacemouse_controller.read()
-
-            delta_pos = np.array([-mouse.y, mouse.x, mouse.z])
-            delta_rot = np.array([mouse.yaw, mouse.pitch, -mouse.roll])
+            mouse = self.spacemouse_controller.read()            
+            action = np.array([*mouse.delta_pos, *mouse.delta_rot, self.is_gripping])
             
-            action = np.array([*delta_pos, *delta_rot, self.is_gripping])
-            
-            self.logger.log_action(action)
-            self.logger.log_gripper()
+            self.logger.log(action)
             self.env.step(action)
 
         if log:
             time.sleep(1)
             recorded_successfully = self.logger.exit_logging()
-        else:
-            recorded_successfully = False
         
         if release_gripper_on_exit and self.is_gripping:
             self.toggle_gripper()
@@ -126,6 +115,7 @@ class FrankaController:
             try:
                 self.spacemouse_controller.read()
                 
+                # pre-control before recording
                 if enable_pre_control:
                     self.is_pre_controlling.set()
                     print(f"\033[93mPre-control enabled.\033[0m Move the arm into desired recording start position. \nPress \033[92mleft button\033[0m on the space mouse to start or stop recording a new trajectory. ({amount} remaining)")
@@ -135,6 +125,7 @@ class FrankaController:
                 
                 time.sleep(0.001)
 
+                # recording
                 if self.is_recording.is_set():
                     if self.enable_spacemouse_control(self.is_recording):
                         amount -= 1

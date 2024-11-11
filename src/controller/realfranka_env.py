@@ -22,6 +22,7 @@ def gripper_controller_process(franka_ip, conn):
             elif cmd[0] == 'read':
                 grip = gripper.read_once().is_grasped
                 conn.send(grip)
+        time.sleep(0.01)
     
 
 def franka_controller_process(franka_ip, action_space, conn, parent_conn_gripper):
@@ -38,11 +39,11 @@ def franka_controller_process(franka_ip, action_space, conn, parent_conn_gripper
     # TODO: implement joint controller
     
     def start_controller(controller=controller):
-        print(f"Starting {controller.__class__.__name__} controller")
+        # print(f"Starting {controller.__class__.__name__} controller")
         fr3.start_controller(controller)
         
     def stop_controller():
-        print("Stopping controller")
+        # print("Stopping controller")
         fr3.stop_controller()
         
     start_controller()
@@ -54,16 +55,6 @@ def franka_controller_process(franka_ip, action_space, conn, parent_conn_gripper
     parent_conn_gripper.send(('read',))
     gripper_state = parent_conn_gripper.recv()
     gripper_action = gripper_state
-    
-    def close_gripper():
-        global gripper_state
-        gripper_state = 1
-        parent_conn_gripper.send(('close',))
-
-    def open_gripper():
-        global gripper_state
-        gripper_state = 0
-        parent_conn_gripper.send(('open',))
     
     with fr3.create_context(frequency=1e3, max_runtime=-1) as ctx:
         while ctx.ok():
@@ -112,14 +103,12 @@ def franka_controller_process(franka_ip, action_space, conn, parent_conn_gripper
                     stop_controller()
                     
                 elif cmd[0] == 'open_gripper':
-                    open_gripper()
+                    gripper_state = gripper_action = 0
+                    parent_conn_gripper.send(('open',))
                     
                 elif cmd[0] == 'close_gripper':
-                    close_gripper()
-                
-                elif cmd[0] == 'read_gripper':
-                    parent_conn_gripper.send(('read',))
-                    gripper_status = parent_conn_gripper.recv()
+                    gripper_state = gripper_action = 1
+                    parent_conn_gripper.send(('close',))
                     
                 elif cmd[0] == 'enable_logging':
                     fr3.enable_logging(cmd[1])
@@ -140,17 +129,14 @@ def franka_controller_process(franka_ip, action_space, conn, parent_conn_gripper
                     fr3.move_to_joint_position(target_q, speed_factor=0.3)
                     #controller.set_control(target_q, np.array([0.0001]*7))
 
-                # TODO: execute gripper action
-                if int(gripper_action) != int(gripper_state):
-                    print("change")
-                    if gripper_action == 1:
-                        gripper_state = 1
-                        close_gripper()
-                    elif gripper_action == 0:
-                        gripper_state = 0
-                        open_gripper()
-                
-
+            # execute gripper action
+            if int(gripper_action) != int(gripper_state):
+                if gripper_action == 1:
+                    gripper_state = 1
+                    parent_conn_gripper.send(('close',))
+                elif gripper_action == 0:
+                    gripper_state = 0
+                    parent_conn_gripper.send(('open',))
             
     conn.close()
 

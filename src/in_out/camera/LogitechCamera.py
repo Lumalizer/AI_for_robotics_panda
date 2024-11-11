@@ -35,14 +35,14 @@ class LogitechCamera(BaseCamera):
     def start(self):
         if not self.active:
             self.active = True
-            print('Camera started')
+            print('Camera started\n')
             self.get_frame()
             
     def stop(self):
         if self.active:
             self.active = False
             self.cap.release()
-            print('Camera stopped')
+            print('Camera stopped\n')
             
         
 if __name__ == '__main__':

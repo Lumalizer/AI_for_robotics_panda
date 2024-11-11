@@ -23,11 +23,31 @@ class SpaceMouseState:
     def __mul__(self, other):
         return SpaceMouseState(self.x*other.x, self.y*other.y, self.z*other.z, self.roll*other.roll, self.pitch*other.pitch, self.yaw*other.yaw)
     
+    @property
+    def delta_pos(self):
+        return [-self.y, self.x, self.z]
+    
+    @property
+    def delta_rot(self):
+        return [self.yaw, self.pitch, -self.roll]
+    
 def button_callback(state, buttons):
     print(f"State: {state}, Buttons: {buttons}")
+    
+def do_nothing():
+    pass
 
 class SpaceMouseController:
-    def __init__(self, button_callback=button_callback, conversion_factor=0.003, angle_conversion_factor=0.4, mouse_axes_conversion=SpaceMouseState(1, 1, 1, 1, 1, 1)):
+    def __init__(self, conversion_factor=0.003, angle_conversion_factor=0.4, 
+                 mouse_axes_conversion=SpaceMouseState(1, 1, 1, 1, 1, 1), 
+                 button_left_callback=do_nothing, button_right_callback=do_nothing):
+        
+        def button_callback(state, buttons):
+            if buttons[0]:
+                button_left_callback()
+            if buttons[1]:
+                button_right_callback()
+        
         success = pyspacemouse.open(button_callback=button_callback)
         if not success:
             exit()
@@ -35,7 +55,6 @@ class SpaceMouseController:
         self.conversion_factor = conversion_factor
         self.angle_conversion_factor = angle_conversion_factor
         self.mouse_axes_conversion = mouse_axes_conversion
-        self.last_read = time.time()
 
     def read(self) -> SpaceMouseState:
         state = pyspacemouse.read()
@@ -64,8 +83,6 @@ class SpaceMouseController:
         roll = roll * self.angle_conversion_factor
         pitch = pitch * self.angle_conversion_factor
         yaw = yaw * self.angle_conversion_factor
-
-        self.last_read = time.time()
         
         state = SpaceMouseState(x, y, z, roll, pitch, yaw)
 

@@ -46,12 +46,13 @@ class RealSenseCamera(BaseCamera):
 
             for i in range(5):
                 frames = self.pipeline.wait_for_frames()
-            print('Camera started')
+            print('Camera started\n')
     
     def stop(self):
         if self.active:
             self.active = False
             self.pipeline.stop()
+            print('Camera stopped\n')
 
 
 

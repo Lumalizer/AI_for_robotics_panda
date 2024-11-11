@@ -8,7 +8,7 @@ from in_out.camera.LogitechCamera import LogitechCamera
 import matplotlib.pyplot as plt
 
 class Logger:
-    def __init__(self, fc: 'FrankaController', fps=30.0) -> None:
+    def __init__(self, fc: 'FrankaController', fps) -> None:
         self.fc = fc
         self.camera = LogitechCamera(is_recording=self.fc.is_recording)
         self.fps = fps
@@ -80,8 +80,7 @@ class Logger:
                     f.write("episode,task_description,n_frames\n")
                 f.write(f"{ep_num},{task_desc},{len(logs)}\n")
             
-            print(f'Trajectory saved to {dataset_path}. Camera frames: {len(self.camera.logs)}, Camera fps (assuming 100 gripper logs/s): {len(self.camera.logs) / (len(self._logs["gripper"]) / 100)} Gripper frames: {len(self._logs["gripper"])} Gripper frames closed: {sum(self._logs["gripper"])}\n')
-            print(f'Episode saved to {episode_path}')
+            print(f'Trajectory saved to {episode_path}. \nCamera frames: {len(self.camera.logs)}, \nCamera fps (assuming 100 gripper logs/s): {len(self.camera.logs) / (len(self._logs["gripper"]) / 100)} \nGripper frames: {len(self._logs["gripper"])} \nGripper frames closed: {sum(self._logs["gripper"])}\n\n')
             
             return True
             
@@ -138,6 +137,7 @@ class Logger:
         
         gripper_status_diff_extended = np.zeros_like(gripper_status_diff)
         # if there is a 1 in the diff, extend it to the next 3 frames
+        # so we do not filter out the near-zero velocity frames in the middle of a gripper opening/closing
         for i in range(len(gripper_status_diff)):
             if gripper_status_diff[i] == 1:
                 gripper_status_diff_extended[i:i+3] = 1
@@ -178,15 +178,11 @@ class Logger:
 
         plt.plot(vels)
         plt.show()
-    
-    def log_gripper(self):
-        # TODO : gripper.read_once() is blocking, check if solution is OK
-        # self._logs['gripper'].append(self.fc.gripper.read_once().is_grasped)
+
+    def log(self, action):
+        self._logs['action'].append(action)
         self._logs['gripper'].append(self.fc.is_gripping)
         self._logs['time'].append(time.time_ns())
-
-    def log_action(self, action):
-        self._logs['action'].append(action)
         
 
 if __name__ == "__main__":
