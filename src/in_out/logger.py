@@ -132,8 +132,18 @@ class Logger:
         action = action[gripper_resampled_indices, ::]  
         
         # remove near-zero velocity frames
-        has_nearzero_velocity = lambda x: np.sum(np.abs(x)) < 0.02
-        indexes_to_keep = [i for i in range(len(franka_dq)) if not has_nearzero_velocity(franka_dq[i])]
+        gripper_status_lag1 = gripper_status[1:]
+        gripper_status_lag1 = np.append(gripper_status_lag1, gripper_status_lag1[-1])
+        gripper_status_diff = np.abs(gripper_status_lag1 - gripper_status)
+        
+        gripper_status_diff_extended = np.zeros_like(gripper_status_diff)
+        # if there is a 1 in the diff, extend it to the next 3 frames
+        for i in range(len(gripper_status_diff)):
+            if gripper_status_diff[i] == 1:
+                gripper_status_diff_extended[i:i+3] = 1
+        
+        has_nearzero_velocity = lambda x: np.sum(np.abs(franka_dq[x])) + gripper_status_diff_extended[x] < 0.02
+        indexes_to_keep = [i for i in range(len(franka_dq)) if not has_nearzero_velocity(i)]
         
         franka_t = franka_t[indexes_to_keep]
         franka_q = franka_q[indexes_to_keep]
@@ -142,7 +152,8 @@ class Logger:
         gripper_t = gripper_t[indexes_to_keep]
         gripper_status = gripper_status[indexes_to_keep]
         action = action[indexes_to_keep]
-        camera_frame_t = camera_frame_t[indexes_to_keep]      
+        camera_frame_t = camera_frame_t[indexes_to_keep]     
+
 
         # Now we have all the data we need, timestamp-aligned and sub-sampled at the same frame rate as the camera (ideally, 30Hz, if data collected through
         # usb-3 port)

@@ -10,10 +10,22 @@ from panda_py import controllers
 from panda_py import libfranka
 from multiprocessing import Process, Pipe
 
-
-def background_controller_process(franka_ip, action_space, conn):
-    fr3 = panda_py.Panda(franka_ip)
+def gripper_controller_process(franka_ip, conn):
     gripper = libfranka.Gripper(franka_ip)
+    while True:
+        if conn.poll(0):
+            cmd = conn.recv()
+            if cmd[0] == 'open':
+                gripper.move(0.08, 0.2)
+            elif cmd[0] == 'close':
+                gripper.grasp(0, 0.2, 50, 0.04, 0.04)
+            elif cmd[0] == 'read':
+                grip = gripper.read_once().is_grasped
+                conn.send(grip)
+    
+
+def franka_controller_process(franka_ip, action_space, conn, parent_conn_gripper):
+    fr3 = panda_py.Panda(franka_ip)
 
     if action_space == "cartesian":
         controller = controllers.CartesianImpedance()
@@ -32,12 +44,27 @@ def background_controller_process(franka_ip, action_space, conn):
     def stop_controller():
         print("Stopping controller")
         fr3.stop_controller()
-
+        
     start_controller()
 
     target_xyz = None
     target_quat = None
     target_q = None
+    
+    parent_conn_gripper.send(('read',))
+    gripper_state = parent_conn_gripper.recv()
+    gripper_action = gripper_state
+    
+    def close_gripper():
+        global gripper_state
+        gripper_state = 1
+        parent_conn_gripper.send(('close',))
+
+    def open_gripper():
+        global gripper_state
+        gripper_state = 0
+        parent_conn_gripper.send(('open',))
+    
     with fr3.create_context(frequency=1e3, max_runtime=-1) as ctx:
         while ctx.ok():
             if conn.poll(0): # non-blocking check if there is any command availble
@@ -78,22 +105,21 @@ def background_controller_process(franka_ip, action_space, conn):
                     pos = _pose[:3, 3]
                     quat = R.from_matrix(_pose[:3, :3]).as_quat() # XYZ W
 
-                    # gripper_status = np.array([gripper.read_once().is_grasped])
-                    # TODO:  add gripper status
-                    gripper_status = np.array([0])
-
-                    state = np.array([*state.q, *pos, *quat, *state.dq, *gripper_status])
-
+                    state = np.array([*state.q, *pos, *quat, *state.dq, gripper_state])
                     conn.send(state)
                     
                 elif cmd[0] == 'stop_controller':
                     stop_controller()
                     
                 elif cmd[0] == 'open_gripper':
-                    gripper.move(0.08, 0.2)
+                    open_gripper()
                     
                 elif cmd[0] == 'close_gripper':
-                    gripper.grasp(0, 0.2, 50, 0.04, 0.04)
+                    close_gripper()
+                
+                elif cmd[0] == 'read_gripper':
+                    parent_conn_gripper.send(('read',))
+                    gripper_status = parent_conn_gripper.recv()
                     
                 elif cmd[0] == 'enable_logging':
                     fr3.enable_logging(cmd[1])
@@ -115,6 +141,15 @@ def background_controller_process(franka_ip, action_space, conn):
                     #controller.set_control(target_q, np.array([0.0001]*7))
 
                 # TODO: execute gripper action
+                if int(gripper_action) != int(gripper_state):
+                    print("change")
+                    if gripper_action == 1:
+                        gripper_state = 1
+                        close_gripper()
+                    elif gripper_action == 0:
+                        gripper_state = 0
+                        open_gripper()
+                
 
             
     conn.close()
@@ -139,9 +174,13 @@ class RealFrankaEnv(gym.Env):
             self.action_space = gym.spaces.Box(low=-1, high=1, shape=(7,), dtype=np.float32)
         elif self.action_space == "joint":
             self.action_space = gym.spaces.Box(low=-1, high=1, shape=(8,), dtype=np.float32) # joint + gripper
+            
+        self.parent_conn_gripper, self.child_conn_gripper = Pipe()
+        self.gripper_process = Process(target=gripper_controller_process, args=(franka_ip, self.child_conn_gripper))
+        self.gripper_process.start()
 
         self.parent_conn, self.child_conn = Pipe()
-        self.process = Process(target=background_controller_process, args=(franka_ip, action_space, self.child_conn))
+        self.process = Process(target=franka_controller_process, args=(franka_ip, action_space, self.child_conn, self.parent_conn_gripper))
         self.process.start()
         
     def get_state(self):
