@@ -16,9 +16,11 @@ def gripper_controller_process(franka_ip, conn):
         if conn.poll(0):
             cmd = conn.recv()
             if cmd[0] == 'open':
-                gripper.move(0.08, 0.2)
+                gripper.move(0.08, 0.5)
             elif cmd[0] == 'close':
-                gripper.grasp(0, 0.2, 50, 0.04, 0.04)
+                # TODO : gripper.grasp should probably be used to pick up items of various size, but it is buggy (sometimes, gripper connection is lost completely)
+                # gripper.grasp(0.02, 0.5, 100, .3, .3)
+                gripper.move(0.035, 0.5)
             elif cmd[0] == 'read':
                 grip = gripper.read_once().is_grasped
                 conn.send(grip)
