@@ -90,8 +90,8 @@ class OctoServer:
                 # 'wrist_image': wrist_image,
                 'image_primary': primary_image,
                 'image_wrist': wrist_image,
-                'timestep_pad_mask': np.full((1, primary_image.shape[1]), True, dtype=bool)
-                # 'proprio': input_proprio
+                'timestep_pad_mask': np.full((1, primary_image.shape[1]), True, dtype=bool),
+                'proprio': payload["state"]
             }
             task = self.model.create_tasks(texts=instruction)                  # for language conditioned
 

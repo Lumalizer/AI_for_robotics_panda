@@ -73,6 +73,12 @@ class FrankaController:
         
     def get_current_state_for_inference(self) -> tuple[dict, np.ndarray, np.ndarray]:
         state = self.env.get_state()
+        
+        # hack for octo
+        state = np.concatenate((state[:10], np.expand_dims(state[21], axis=0)))
+        state = np.expand_dims(state, axis=0)
+        # end hack
+        
         state = np.expand_dims(state, axis=0)
         data = {'proprio': state}
         
@@ -168,7 +174,7 @@ class FrankaController:
             if (time.time() - start) > max_seconds:
                 break
             state = self.get_current_state_for_inference()
-            data = {"instruction": instruction}
+            data = {"instruction": instruction, "state": state['proprio']}
             
             if state["primary_image"] is not None:
                 data["primary_image"] = self.to_base64(state['primary_image'])

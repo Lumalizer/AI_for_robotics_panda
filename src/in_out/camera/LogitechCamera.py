@@ -3,6 +3,7 @@ from in_out.camera.BaseCamera import BaseCamera
 
 # Set the FOV / zoom using v4l2-ctl
 # sudo apt install v4l-utils
+# find devices with "v4l2-ctl --list-devices"
 
 class LogitechCamera(BaseCamera):
     def __init__(self, *args, **kwargs):
@@ -10,7 +11,7 @@ class LogitechCamera(BaseCamera):
         self.active = False
         
         fourcc = cv2.VideoWriter_fourcc('M','J','P','G')
-        cap = cv2.VideoCapture(6)
+        cap = cv2.VideoCapture(9)
         if not cap.isOpened():
             raise Exception('Logitech camera not found')
         
