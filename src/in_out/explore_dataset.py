@@ -23,7 +23,7 @@ def update_plot_and_description(selected_dataset, selected_episode):
     task_description = data[0].get('task_description', 'No description available')
     window['task_description'].update(task_description)
     
-    plottable_keys = [key for key in keys if key not in ["task_description", "franka_pose", "franka_t", "gripper_t", "camera_frame_t"]]
+    plottable_keys = [key for key in keys if key not in ["task_description", "franka_pose", "franka_t", "gripper_t", "camera_frame_t", "wrist_frame_t"]]
     
     fig, axes = plt.subplots(len(plottable_keys), 1, figsize=(10, len(plottable_keys) * 3))
     fig.tight_layout(pad=3.0)

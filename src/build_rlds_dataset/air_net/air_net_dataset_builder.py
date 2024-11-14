@@ -5,12 +5,12 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 import tensorflow_hub as hub
 import cv2
-from scipy.spatial.transform import Rotation
+import os
 
 class AirNet(tfds.core.GeneratorBasedBuilder):
     """DatasetBuilder for example dataset."""
 
-    VERSION = tfds.core.Version('1.0.5')
+    VERSION = tfds.core.Version('1.0.9')    
     RELEASE_NOTES = {
       '1.0.0': 'Initial release.',
       '1.0.1': 'hover_simple_ds',
@@ -18,10 +18,19 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
       '1.0.3': 'hover_blue_logi',
       '1.0.4': 'hover_blue_logi2',
       '1.0.5': 'hover_blue_logi3',
+      '1.0.6': 'first_grasp',
+      '1.0.7': 'wrist_cam_test',
+      '1.0.8': 'octo_with_wrist',
+      '1.0.9': 'octo_with_wrist_fixed',
     }
+    # make sure the name matches the folder
+    
+    RELEASE_NAME = RELEASE_NOTES[str(VERSION)]
+    dataset_path = f'../../../datasets/{RELEASE_NAME}'
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # assert(os.path.exists(self.dataset_path))
         # self._embed = hub.load("https://tfhub.dev/google/universal-sentence-encoder-large/5")
 
     def _info(self) -> tfds.core.DatasetInfo:
@@ -30,18 +39,18 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
             features=tfds.features.FeaturesDict({
                 'steps': tfds.features.Dataset({
                     'observation': tfds.features.FeaturesDict({
-                        'image': tfds.features.Image(
+                        'primary_image': tfds.features.Image(
                             shape=(256, 256, 3),
                             dtype=np.uint8,
                             encoding_format='png',
                             doc='Main camera RGB observation.',
                         ),
-                        # 'wrist_image': tfds.features.Image(
-                        #     shape=(64, 64, 3),
-                        #     dtype=np.uint8,
-                        #     encoding_format='png',
-                        #     doc='Wrist camera RGB observation.',
-                        # ),
+                        'wrist_image': tfds.features.Image(
+                            shape=(256, 256, 3),
+                            dtype=np.uint8,
+                            encoding_format='png',
+                            doc='Wrist camera RGB observation.',
+                        ),
                         'state': tfds.features.Tensor(
                             shape=(11,),
                             dtype=np.float32,
@@ -101,22 +110,11 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
         return {
             # change the path to match the datasets subfolder
             
-            'train': self._generate_examples(path='../../../datasets/hover_blue_logi3/episode_*.npy'),
-            # 'val': self._generate_examples(path='../../../datasets/test_franka_ds/val/episode_*.npy'),
+            'train': self._generate_examples(path=f'../../../datasets/{self.RELEASE_NAME}/episode_*.npy'),
+            # 'val': self._generate_examples(path=f'../../../datasets/{self.RELEASE_NAME}val/episode_*.npy'),
         }
-
-    def _generate_examples(self, path) -> Iterator[Tuple[str, Any]]:
-        """Generator of examples for each split."""
         
-        def _parse_example(episode_path):
-
-            # add deltas (from franka_pose --> split in xyz and rot_matrix)
-
-            data = np.load(episode_path, allow_pickle=True)  # list of dicts in our case
-            mp4_path = episode_path.replace('.npy', '.mp4')
-            
-            # load mp4 and unpack frames into a np array using cv2 tin order to save up on space
-            
+    def get_mp4_frames(mp4_path):
             cap = cv2.VideoCapture(mp4_path)
             frames = []
             while cap.isOpened():
@@ -126,6 +124,23 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
                 frames.append(frame)
                 
             cap.release()
+            return frames
+
+    def _generate_examples(self, path) -> Iterator[Tuple[str, Any]]:
+        """Generator of examples for each split."""
+        
+        def _parse_example(episode_path):
+
+            # add deltas (from franka_pose --> split in xyz and rot_matrix)
+
+            data = np.load(episode_path, allow_pickle=True)  # list of dicts in our case
+            primary_mp4_path = episode_path.replace('.npy', '.mp4').replace('episode_', 'primary_episode_')
+            wrist_mp4_path = episode_path.replace('.npy', '.mp4').replace('episode_', 'wrist_episode_')
+            
+            # load mp4 and unpack frames into a np array using cv2 tin order to save up on space
+            
+            primary_frames = self.get_mp4_frames(primary_mp4_path)
+            wrist_frames = self.get_mp4_frames(wrist_mp4_path)
             
             # assemble episode --> here we're assuming demos so we set reward to 1 at the end
             
@@ -154,8 +169,8 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
                 
                 episode.append({
                     'observation': {
-                        'image': frames[i],
-                        # 'wrist_image': step['wrist_image'],
+                        'primary_image': primary_frames[i],
+                        'wrist_image': wrist_frames[i],
                         'state': state, 
                     },
                     'action': action,
