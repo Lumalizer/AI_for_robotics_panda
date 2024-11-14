@@ -1,6 +1,6 @@
 from controller.franka_controller import FrankaController
 
 
-fc = FrankaController(dataset_name="hover_blue_logi3")
+fc = FrankaController(dataset_name="octo_with_wrist_fixed")
 # fc.collect_demonstrations(50)
-fc.run_from_server()
+fc.continually_run_from_server()

@@ -10,7 +10,10 @@ class LogitechCamera(BaseCamera):
         self.active = False
         
         fourcc = cv2.VideoWriter_fourcc('M','J','P','G')
-        cap = cv2.VideoCapture(0)
+        cap = cv2.VideoCapture(6)
+        if not cap.isOpened():
+            raise Exception('Logitech camera not found')
+        
         cap.set(cv2.CAP_PROP_FOURCC, fourcc)
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 300)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 300)
@@ -18,9 +21,6 @@ class LogitechCamera(BaseCamera):
         
         # we will not receive the exact aspect ratio that we want
         # so need to crop / resize later
-        actual_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-        actual_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-        self.aspect_diff = actual_width - actual_height
         
         self.cap = cap
         
@@ -28,21 +28,20 @@ class LogitechCamera(BaseCamera):
         ret, frame = self.cap.read()
         if not ret:
             return None
-        frame = frame[:, int(self.aspect_diff/2):int(-self.aspect_diff/2)]
-        frame = cv2.resize(frame, (256, 256))
+        frame = self.crop_and_resize(frame, 256)
         return frame
 
     def start(self):
         if not self.active:
             self.active = True
-            print('Camera started\n')
+            print(f'{self.name} camera started\n')
             self.get_frame()
             
     def stop(self):
         if self.active:
             self.active = False
             self.cap.release()
-            print('Camera stopped\n')
+            print(f'{self.name} camera stopped\n')
             
         
 if __name__ == '__main__':

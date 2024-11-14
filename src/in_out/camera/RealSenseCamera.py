@@ -10,6 +10,10 @@ class RealSenseCamera(BaseCamera):
         # reset devices to fix errors
         ctx = rs.context()
         devices = ctx.query_devices()
+        
+        if len(devices) == 0:
+            raise Exception('No RealSense devices found')
+        
         for dev in devices:
             dev.hardware_reset()
 
@@ -21,6 +25,7 @@ class RealSenseCamera(BaseCamera):
         self.pipeline_profile = self.config.resolve(self.pipeline_wrapper)
 
         self.config.enable_stream(rs.stream.color, 256, 256, rs.format.rgb8, self.fps)
+        
 
     def get_frame(self):
         frames = self.pipeline.wait_for_frames()
@@ -34,6 +39,9 @@ class RealSenseCamera(BaseCamera):
         # need to copy to avoid filling the buffer and getting duplicate frames
         np_image = np.asanyarray(rgb_data)
         
+        # resize
+        np_image = self.crop_and_resize(np_image, 256)
+        
         # convert to the right color format
         np_image = cv2.cvtColor(np_image.copy(), cv2.COLOR_BGR2RGB)
 
@@ -46,13 +54,13 @@ class RealSenseCamera(BaseCamera):
 
             for i in range(5):
                 frames = self.pipeline.wait_for_frames()
-            print('Camera started\n')
+            print(f'{self.name} Camera started\n')
     
     def stop(self):
         if self.active:
             self.active = False
             self.pipeline.stop()
-            print('Camera stopped\n')
+            print(f'{self.name} Camera stopped\n')
 
 
 

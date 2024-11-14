@@ -4,9 +4,13 @@ import time
 import threading
 
 class BaseCamera:
-    def __init__(self, is_recording: threading.Event = None, fps: int = 30):
+    def __init__(self, name: str=None, is_recording: threading.Event = None, fps: int = 30):
+        if not name:
+            self.name = self.__class__.__name__
+        else:
+            self.name = name
+            
         self.active = False
-        self.frames = []
         self.logs = []
         self.time = []
         self.is_recording = is_recording
@@ -51,7 +55,20 @@ class BaseCamera:
     def start_camera_thread(self):
         try:
             self.cam_thread = threading.Thread(target=self.camera_thread_fn, daemon=True)
+            self.start()
             self.cam_thread.start()
         except Exception as e:
             print(f"Camera not connected. {e}")
             raise
+        
+    def crop_and_resize(self, image, dimension):
+        height, width = image.shape[:2]
+        min_dim = min(height, width)
+
+        start_x = (width - min_dim) // 2
+        start_y = (height - min_dim) // 2
+
+        cropped_image = image[start_y:start_y + min_dim, start_x:start_x + min_dim]
+        resized_image = cv2.resize(cropped_image, (dimension, dimension))
+
+        return resized_image

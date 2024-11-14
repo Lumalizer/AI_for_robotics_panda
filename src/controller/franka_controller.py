@@ -10,7 +10,7 @@ import requests
 from controller.realfranka_env import RealFrankaEnv
 import base64
 import zlib
-import time
+
 
 class FrankaController:
     def __init__(self,
@@ -25,8 +25,7 @@ class FrankaController:
                  step_duration_s=0.2,
                  step_duration_s_spacemouse=0.01,
                  
-                 fps=30,
-                 max_runtime=-1):
+                 fps=30):
         
         self.env = env if env else RealFrankaEnv(step_duration_s=step_duration_s, action_space="cartesian")
         
@@ -40,7 +39,6 @@ class FrankaController:
         self.step_duration_s = step_duration_s
         self.step_duration_s_spacemouse = step_duration_s_spacemouse
         
-        self.max_runtime = max_runtime
         self.fps = fps
         
         # space mouse
@@ -50,7 +48,7 @@ class FrankaController:
                 button_left_callback=self.toggle_recording, button_right_callback=self.toggle_gripper)
         except Exception as e:
             self.spacemouse_controller = None
-            print("SpaceMouse not connected.")
+            print(f"SpaceMouse not connected. {e}")
         
 
         self.env.reset()
@@ -73,14 +71,22 @@ class FrankaController:
             self.is_recording.set()
             print('Recording trajectory............\n')
         
-    def get_current_state_for_inference(self) -> tuple[dict, np.ndarray, np.ndarray]:     
-        img = self.logger.camera.logs[-1]
-        img = np.expand_dims(img, axis=0)
-        
+    def get_current_state_for_inference(self) -> tuple[dict, np.ndarray, np.ndarray]:
         state = self.env.get_state()
         state = np.expand_dims(state, axis=0)
+        data = {'proprio': state}
         
-        return {'proprio': state, 'image_primary': img}   
+        cam_primary, cam_wrist = self.logger.primary_camera, self.logger.wrist_camera
+        if cam_primary:
+            img_primary = cam_primary.logs[-1]
+            img_primary = np.expand_dims(img_primary, axis=0)
+            data['primary_image'] = img_primary
+        if cam_wrist:
+            img_wrist = cam_wrist.logs[-1]
+            img_wrist = np.expand_dims(img_wrist, axis=0)
+            data['wrist_image'] = img_wrist
+        
+        return data
 
     def enable_spacemouse_control(self, event: threading.Event, log=True, release_gripper_on_exit=True, reset=True):
         # print(f"Starting SpaceMouse control for {self.max_runtime} seconds...")
@@ -141,24 +147,43 @@ class FrankaController:
                 else:
                     raise e
                 
-    def run_from_server(self, ip:str="http://0.0.0.0:8000/act"):
-        instruction = input("Enter instruction (or keep empty to 'grasp the blue block'): ")
+    def to_base64(self, img:np.ndarray) -> str:
+        return base64.b64encode(zlib.compress(img.tobytes())).decode('utf-8')
+                
+    def run_from_server(self, ip:str="http://0.0.0.0:8000/act", instruction=None, max_seconds=5):
+        
         if not instruction:
-            instruction = "grasp the blue block"
-        
+            instruction = input(f"Enter instruction (or keep empty to ({instruction}): ")
+
         self.logger.enter_logging()
-        while not self.logger.camera.logs:
-            time.sleep(0.1)
+        for camera in self.logger.cameras:
+            while not camera.logs:
+                time.sleep(0.1)
+                
+        self.env.reset()
         
+        print(f"Performing command ({instruction}) for {max_seconds} seconds...")
+        start = time.time()
         while True:
+            if (time.time() - start) > max_seconds:
+                break
             state = self.get_current_state_for_inference()
-            img = base64.b64encode(zlib.compress(state['image_primary'].tobytes())).decode('utf-8')
+            data = {"instruction": instruction}
             
+            if state["primary_image"] is not None:
+                data["primary_image"] = self.to_base64(state['primary_image'])
+            if state["wrist_image"] is not None:
+                data["wrist_image"] = self.to_base64(state['wrist_image'])
+                
             try:
-                action = requests.post(ip, json={"image": img, "instruction": instruction}).json()
+                action = requests.post(ip, json=data).json()
                 self.env.step(action)
             except Exception as e:
                 print(f"Error in server communication: {e}")
                 break
-        
+    
         self.logger.exit_logging(save=False)
+        
+    def continually_run_from_server(self, instruction: str = "grasp the blue block"):      
+        while True:
+            self.run_from_server(instruction=instruction)
