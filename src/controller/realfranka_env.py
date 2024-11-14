@@ -64,10 +64,20 @@ def franka_controller_process(franka_ip, action_space, conn, parent_conn_gripper
                 cmd = conn.recv() # tuple:  ('action', [....]) or ('get_state')
                 if cmd[0] == 'action':
                     new_action = cmd[1]
+                    
+                    # TODO : fix this hack
+                    multiplier = 1
+                    try:
+                        gripper_action = new_action[6]
+                    except IndexError:
+                        # this means we are using octo
+                        new_action = new_action[0]
+                        multiplier = 0.03
                 
                     if action_space == "cartesian":
-                        delta_x = new_action[:3] # delta_x, delta_y, delta_z
-                        delta_rot = new_action[3:6] # delta_yaw, delta_pitch, delta_roll
+                        # TODO: remove this hack
+                        delta_x = new_action[:3] *multiplier # delta_x, delta_y, delta_z
+                        delta_rot = new_action[3:6] *multiplier # delta_yaw, delta_pitch, delta_roll
                         gripper_action = new_action[6]
 
                         pose = fr3.get_pose().copy()
@@ -152,25 +162,24 @@ class RealFrankaEnv(gym.Env):
 
         assert action_space in ["cartesian", "joint"]
 
-        self.action_space = action_space
         self.step_duration_s = step_duration_s
 
         # 7x joint angles (q), (3+4)x FK (xyz, quaternion), 7x joint velocities (dq), 1x gripper state
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(7+3+4+7+1,), dtype=np.float32)
 
-        if self.action_space == "cartesian":
-            self.action_space = gym.spaces.Box(low=-1, high=1, shape=(7,), dtype=np.float32)
-        elif self.action_space == "joint":
-            self.action_space = gym.spaces.Box(low=-1, high=1, shape=(8,), dtype=np.float32) # joint + gripper
-            
         self.parent_conn_gripper, self.child_conn_gripper = Pipe()
         self.gripper_process = Process(target=gripper_controller_process, args=(franka_ip, self.child_conn_gripper))
         self.gripper_process.start()
-
-        self.parent_conn, self.child_conn = Pipe()
-        self.process = Process(target=franka_controller_process, args=(franka_ip, action_space, self.child_conn, self.parent_conn_gripper))
-        self.process.start()
         
+        self.parent_conn, self.child_conn = Pipe()
+        self.controller_process = Process(target=franka_controller_process, args=(franka_ip, action_space, self.child_conn, self.parent_conn_gripper))
+        self.controller_process.start()
+        
+        if action_space == "cartesian":
+            self.action_space = gym.spaces.Box(low=-1, high=1, shape=(7,), dtype=np.float32)
+        elif action_space == "joint":
+            self.action_space = gym.spaces.Box(low=-1, high=1, shape=(8,), dtype=np.float32) # joint + gripper
+            
     def get_state(self):
         self.parent_conn.send(('get_state',))
         state = self.parent_conn.recv()
@@ -213,8 +222,8 @@ class RealFrankaEnv(gym.Env):
         return state, 0, False, False, {}
 
     def close(self):
-        self.process.terminate()
-        self.process.join()
+        self.controller_process.terminate()
+        self.controller_process.join()
 
 
 
