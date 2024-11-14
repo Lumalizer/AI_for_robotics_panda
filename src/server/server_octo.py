@@ -75,18 +75,22 @@ class OctoServer:
                 payload = json.loads(payload["encoded"])
 
             # Parse payload components
-            image, instruction = payload["image"], payload["instruction"]
+            primary_image, wrist_image, instruction = payload["primary_image"], payload["wrist_image"], payload["instruction"]
             unnorm_key = payload.get("unnorm_key", None)
 
-            image = np.frombuffer(zlib.decompress(base64.b64decode(image)), dtype=np.uint8).reshape((1, 2, 256, 256, 3))
-
+            primary_image = np.frombuffer(zlib.decompress(base64.b64decode(primary_image)), dtype=np.uint8).reshape((1, 1, 256, 256, 3))
+            wrist_image = np.frombuffer(zlib.decompress(base64.b64decode(wrist_image)), dtype=np.uint8).reshape((1, 1, 256, 256, 3))
+            
             if isinstance(instruction, str):
                 instruction = [instruction]
 
             # Run Octo Inference
             observation = {
-                'image_primary': image,
-                'timestep_pad_mask': np.full((1, image.shape[1]), True, dtype=bool)
+                # 'primary_image': primary_image,
+                # 'wrist_image': wrist_image,
+                'image_primary': primary_image,
+                'image_wrist': wrist_image,
+                'timestep_pad_mask': np.full((1, primary_image.shape[1]), True, dtype=bool)
                 # 'proprio': input_proprio
             }
             task = self.model.create_tasks(texts=instruction)                  # for language conditioned
@@ -126,7 +130,7 @@ class OctoServer:
 class DeployConfig:
     # fmt: off
     model = "octo"
-    octo_path = "trained_models/octo"
+    octo_path = "/home/u950323/trained-models/octo_checkpoints/air_net"
 
     # Server Configuration
     host: str = "0.0.0.0"                                               # Host IP Address
