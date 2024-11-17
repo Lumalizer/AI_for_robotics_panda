@@ -6,12 +6,12 @@ from in_out.camera.BaseCamera import BaseCamera
 # find devices with "v4l2-ctl --list-devices"
 
 class LogitechCamera(BaseCamera):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, camera_id : int = 3, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.active = False
         
         fourcc = cv2.VideoWriter_fourcc('M','J','P','G')
-        cap = cv2.VideoCapture(9)
+        cap = cv2.VideoCapture(camera_id)
         if not cap.isOpened():
             raise Exception('Logitech camera not found')
         
@@ -48,5 +48,3 @@ class LogitechCamera(BaseCamera):
 if __name__ == '__main__':
     cam = LogitechCamera()
     cam.start()
-    cam.stream_video_to_new_window()
-    

@@ -25,7 +25,9 @@ class FrankaController:
                  step_duration_s=0.2,
                  step_duration_s_spacemouse=0.01,
                  
-                 fps=30):
+                 fps=30,
+                 
+                 randomize_starting_position=True):
         
         self.env = env if env else RealFrankaEnv(step_duration_s=step_duration_s, action_space="cartesian")
         
@@ -41,6 +43,8 @@ class FrankaController:
         
         self.fps = fps
         
+        self.randomize_starting_position = randomize_starting_position
+
         # space mouse
         try:
             self.spacemouse_controller = SpaceMouseController(
@@ -119,6 +123,19 @@ class FrankaController:
         
         if reset:
             self.env.reset()
+            if self.randomize_starting_position:
+                n_steps = 5
+
+                # Random dx dy dz dyaw dpitch droll on reset
+                dx = np.random.uniform(-0.1, 0.3) / n_steps
+                dy = np.random.uniform(-0.3, 0.3) / n_steps
+                dz = np.random.uniform(-0.3, 0) / n_steps
+                dyaw = np.random.uniform(-15, 15) / n_steps
+                dpitch = np.random.uniform(-15, 15) / n_steps
+                droll = np.random.uniform(-45, 45) / n_steps
+
+                for s in range(n_steps):
+                    self.env.step(np.array([dx, dy, dz, dyaw, dpitch, droll, 0]))
         
         return recorded_successfully
             
@@ -126,7 +143,7 @@ class FrankaController:
         while amount:
             try:
                 self.spacemouse_controller.read()
-                
+
                 # pre-control before recording
                 if enable_pre_control:
                     self.is_pre_controlling.set()

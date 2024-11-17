@@ -8,8 +8,10 @@ from in_out.camera.LogitechCamera import LogitechCamera
 from in_out.camera.RealSenseCamera import RealSenseCamera
 import matplotlib.pyplot as plt
 
+import threading
+
 class Logger:
-    def __init__(self, fc: 'FrankaController', fps) -> None:
+    def __init__(self, fc: 'FrankaController', fps, show_cameras=True) -> None:
         self.fc = fc
         
         self.fps = fps
@@ -20,9 +22,28 @@ class Logger:
         self.cameras.append(RealSenseCamera(name="wrist", is_recording=self.fc.is_recording, fps=fps))        
         
         self.clear_logs()
-        
+
         for camera in self.cameras:
             camera.start_camera_thread()
+
+        self.show_cameras = show_cameras
+        if self.show_cameras:
+            self.show_cameras_thread = threading.Thread(target=self.update_cameras_thread, daemon=True)
+            self.show_cameras_thread.start()
+
+    def update_cameras_thread(self):
+        for camera in self.cameras:
+            cv2.namedWindow(camera.name, cv2.WINDOW_AUTOSIZE)
+        while True:
+            for camera in self.cameras:
+                if camera.last_frame is not None:
+                    viz = camera.last_frame.copy()
+                    viz = cv2.resize(viz, (0, 0), fx=4, fy=4)
+                    cv2.imshow(camera.name, viz)
+            cv2.waitKey(1)
+
+
+
             
     @property
     def primary_camera(self):
