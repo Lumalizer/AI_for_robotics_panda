@@ -26,7 +26,7 @@ class FrankaController:
                  
                  fps=30,
                  
-                 randomize_starting_position=True):
+                 randomize_starting_position=False):
         
         self.env = env if env else RealFrankaEnv(step_duration_s=step_duration_s, action_space="cartesian")
         

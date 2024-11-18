@@ -5,12 +5,13 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 import tensorflow_hub as hub
 import cv2
-import os
+import pickle
+from in_out.episode_logstate import EpisodeLogState
 
 class AirNet(tfds.core.GeneratorBasedBuilder):
     """DatasetBuilder for example dataset."""
 
-    VERSION = tfds.core.Version('1.0.9')    
+    VERSION = tfds.core.Version('1.0.10')    
     RELEASE_NOTES = {
       '1.0.0': 'Initial release.',
       '1.0.1': 'hover_simple_ds',
@@ -22,11 +23,12 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
       '1.0.7': 'wrist_cam_test',
       '1.0.8': 'octo_with_wrist',
       '1.0.9': 'octo_with_wrist_fixed',
+      '1.0.10': 'octo_with_wrist_fixed',
     }
     # make sure the name matches the folder
     
     RELEASE_NAME = RELEASE_NOTES[str(VERSION)]
-    dataset_path = f'../../../datasets/{RELEASE_NAME}'
+    dataset_path = f'../../../datasets/raw_data/{RELEASE_NAME}'
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -110,17 +112,30 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
         return {
             # change the path to match the datasets subfolder
             
-            'train': self._generate_examples(path=f'../../../datasets/{self.RELEASE_NAME}/episode_*.npy'),
-            # 'val': self._generate_examples(path=f'../../../datasets/{self.RELEASE_NAME}val/episode_*.npy'),
+            'train': self._generate_examples(path=f'../../../datasets/raw_data/{self.RELEASE_NAME}/episode_*.pkl'),
+            # 'val': self._generate_examples(path=f'../../../datasets/{self.RELEASE_NAME}val/episode_*.pkl'),
         }
         
-    def get_mp4_frames(mp4_path):
+    def crop_and_resize(self, image, dimension):
+        height, width = image.shape[:2]
+        min_dim = min(height, width)
+
+        start_x = (width - min_dim) // 2
+        start_y = (height - min_dim) // 2
+
+        cropped_image = image[start_y:start_y + min_dim, start_x:start_x + min_dim]
+        resized_image = cv2.resize(cropped_image, (dimension, dimension))
+
+        return resized_image
+        
+    def get_mp4_frames(self, mp4_path):
             cap = cv2.VideoCapture(mp4_path)
             frames = []
             while cap.isOpened():
                 ret, frame = cap.read()
                 if not ret:
                     break
+                frame = self.crop_and_resize(frame, 256) # TODO different size, augmentation, etc
                 frames.append(frame)
                 
             cap.release()
@@ -133,9 +148,14 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
 
             # add deltas (from franka_pose --> split in xyz and rot_matrix)
 
-            data = np.load(episode_path, allow_pickle=True)  # list of dicts in our case
-            primary_mp4_path = episode_path.replace('.npy', '.mp4').replace('episode_', 'primary_episode_')
-            wrist_mp4_path = episode_path.replace('.npy', '.mp4').replace('episode_', 'wrist_episode_')
+            # data = np.load(episode_path, allow_pickle=True)  # list of dicts in our case
+            data: EpisodeLogState = pickle.load(open(episode_path, 'rb'))
+            data.align_logs_with_resampling()
+            data.remove_near_zero_velocity_frames()
+            data = data.get_episode_data()
+            
+            primary_mp4_path = episode_path.replace('.pkl', '.mp4').replace('episode_', 'primary_episode_')
+            wrist_mp4_path = episode_path.replace('.pkl', '.mp4').replace('episode_', 'wrist_episode_')
             
             # load mp4 and unpack frames into a np array using cv2 tin order to save up on space
             
@@ -149,8 +169,8 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
             for i in range(len(data)):
                 
                 # assuming the data is at 15Hz, resample to 5Hz
-                if i % 3 != 0:
-                    continue
+                # if i % 3 != 0:
+                #     continue
                 
                 step = data[i]
 
