@@ -4,11 +4,15 @@ import time
 import threading
 
 class BaseCamera:
-    def __init__(self, name: str=None, is_recording: threading.Event = None, fps: int = 30, show_camera : bool = True):
+    def __init__(self, name: str=None, is_recording: threading.Event = None, 
+                 width: int=640, height: int=480, fps: int = 30, show_camera : bool = True):
         if not name:
             self.name = self.__class__.__name__
         else:
             self.name = name
+            
+        self.width = width
+        self.height = height
             
         self.active = False
         self.logs = []
@@ -66,3 +70,15 @@ class BaseCamera:
         resized_image = cv2.resize(cropped_image, (dimension, dimension))
 
         return resized_image
+    
+    def stream_video_to_new_window(self):
+        # we need this to view the camera angle / positioning
+            while True:
+                frame = self.get_frame()
+                if frame is not None:
+                    frame = np.array(frame)
+                    cv2.imshow('Video Feed', frame)
+                    if cv2.waitKey(1) & 0xFF == ord('q'):
+                        break
+
+            cv2.destroyAllWindows()

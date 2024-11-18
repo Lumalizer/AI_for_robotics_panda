@@ -24,7 +24,7 @@ class RealSenseCamera(BaseCamera):
         self.pipeline_wrapper = rs.pipeline_wrapper(self.pipeline)
         self.pipeline_profile = self.config.resolve(self.pipeline_wrapper)
 
-        self.config.enable_stream(stream_type=rs.stream.color, width=1280, height=720, format=rs.format.rgb8, framerate=self.fps)
+        self.config.enable_stream(stream_type=rs.stream.color, width=self.width, height=self.height, format=rs.format.rgb8, framerate=self.fps)
         
 
     def get_frame(self):
@@ -40,7 +40,7 @@ class RealSenseCamera(BaseCamera):
         np_image = np.asanyarray(rgb_data)
 
         # resize
-        np_image = self.crop_and_resize(np_image, 256)
+        # np_image = self.crop_and_resize(np_image, 256)
         np_image = cv2.cvtColor(np_image, cv2.COLOR_BGR2RGB)
 
         return np_image
@@ -65,3 +65,4 @@ class RealSenseCamera(BaseCamera):
 if __name__ == "__main__":
     cam = RealSenseCamera()
     cam.start()
+    cam.stream_video_to_new_window()

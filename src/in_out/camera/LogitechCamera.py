@@ -6,7 +6,7 @@ from in_out.camera.BaseCamera import BaseCamera
 # find devices with "v4l2-ctl --list-devices"
 
 class LogitechCamera(BaseCamera):
-    def __init__(self, camera_id : int = 3, *args, **kwargs):
+    def __init__(self, camera_id : int = 8, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.active = False
         
@@ -16,12 +16,9 @@ class LogitechCamera(BaseCamera):
             raise Exception('Logitech camera not found')
         
         cap.set(cv2.CAP_PROP_FOURCC, fourcc)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 300)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 300)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
         cap.set(cv2.CAP_PROP_FPS, self.fps)
-        
-        # we will not receive the exact aspect ratio that we want
-        # so need to crop / resize later
         
         self.cap = cap
         
@@ -29,7 +26,7 @@ class LogitechCamera(BaseCamera):
         ret, frame = self.cap.read()
         if not ret:
             return None
-        frame = self.crop_and_resize(frame, 256)
+        # frame = self.crop_and_resize(frame, 256)
         return frame
 
     def start(self):
@@ -48,3 +45,4 @@ class LogitechCamera(BaseCamera):
 if __name__ == '__main__':
     cam = LogitechCamera()
     cam.start()
+    cam.stream_video_to_new_window()
