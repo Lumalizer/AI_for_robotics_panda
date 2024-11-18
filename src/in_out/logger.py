@@ -3,11 +3,11 @@ import os
 import cv2
 import numpy as np
 import panda_py
+from in_out.episode_logstate import EpisodeLogState
 from in_out.camera.BaseCamera import BaseCamera
 from in_out.camera.LogitechCamera import LogitechCamera
 from in_out.camera.RealSenseCamera import RealSenseCamera
 import matplotlib.pyplot as plt
-
 import threading
 
 class Logger:
@@ -38,12 +38,9 @@ class Logger:
             for camera in self.cameras:
                 if camera.last_frame is not None:
                     viz = camera.last_frame.copy()
-                    viz = cv2.resize(viz, (0, 0), fx=4, fy=4)
+                    viz = cv2.resize(viz, (0, 0), fx=1, fy=1)
                     cv2.imshow(camera.name, viz)
             cv2.waitKey(1)
-
-
-
             
     @property
     def primary_camera(self):
@@ -63,6 +60,11 @@ class Logger:
         for camera in self.cameras:
             camera.clear_logs()
         
+    def log(self, action):
+        self._logs['action'].append(action)
+        self._logs['gripper'].append(self.fc.is_gripping)
+        self._logs['time'].append(time.time_ns())
+        
     def enter_logging(self):
         self.fc.is_recording.set()
         # logs directly from libfranka
@@ -81,7 +83,8 @@ class Logger:
         self.fc.env.disable_logging()
         
         if save:
-            logs = self.get_resampled_logs()
+            logs = self.get_raw_logstate()
+            
             
             task_desc = input(f"""Enter task description such as 'pick up the red cube'
                                 or press ENTER to re-use the previous task description: ({self.previous_task_desc})
@@ -92,18 +95,16 @@ class Logger:
                 task_desc = self.previous_task_desc
             
             self.previous_task_desc = task_desc
-            for log in logs:
-                log['task_description'] = task_desc
+            logs.task_description = task_desc
             
-            dataset_path = os.path.join("datasets", self.fc.dataset_name)
+            dataset_path = os.path.join("datasets", "raw_data", self.fc.dataset_name)
             os.makedirs(dataset_path, exist_ok=True)
             
             # fill in the gaps in the episode numbers if needed
             ep_num = self.get_ep_num_to_log(dataset_path)
             
-            episode_path = os.path.join(dataset_path, f'episode_{ep_num}.npy')
-            
-            np.save(episode_path, logs)
+            episode_path = os.path.join(dataset_path, f'episode_{ep_num}.pkl')
+            logs.save_raw_pickle(episode_path)
             
             for camera in self.cameras:
                 self.write_mp4(camera, dataset_path, ep_num)
@@ -112,8 +113,8 @@ class Logger:
             metadata_exists = os.path.exists(os.path.join(dataset_path, 'data.csv'))
             with open(os.path.join(dataset_path, 'data.csv'), 'a') as f:
                 if not metadata_exists:
-                    f.write("episode,task_description,n_frames\n")
-                f.write(f"{ep_num},{task_desc},{len(logs)}\n")
+                    f.write("episode,task_description\n")
+                f.write(f"{ep_num},{task_desc}\n")
             
             print(f'Trajectory saved to {episode_path}. \n')
             print(f'Gripper frames: {len(self._logs["gripper"])} \nGripper frames closed: {sum(self._logs["gripper"])}\n\n')
@@ -144,93 +145,23 @@ class Logger:
             out.write(frame)
         
         out.release()
-        
-    def get_resampled_logs(self):
+    
+    def get_raw_logstate(self):
         logs = self.fc.env.get_log()
-        franka_q = np.array(logs['q'])
-        franka_dq = np.array(logs['dq'])
-        franka_pose = np.array([panda_py.fk(qq) for qq in franka_q])
-        franka_t = np.array(logs['time'])
-        gripper_status = np.array(self._logs['gripper'])
-        action = np.array(self._logs['action'])  # action executed at time t, so this is already the target!
-        
-        franka_t = (franka_t-franka_t[0]) / 1e3
-        franka_t = np.squeeze(franka_t)
 
-        gripper_t = np.array(self._logs['time'])
-        gripper_t = (gripper_t - gripper_t[0]) / 1e9
-
-        wrist_frame_t = np.array(self.wrist_camera.time)
-        wrist_frame_t = (wrist_frame_t - self._logs['time'][0]) / 1e9
+        logstate = EpisodeLogState(
+            franka_q=np.array(logs['q']),
+            franka_dq=np.array(logs['dq']),
+            franka_pose=np.array([panda_py.fk(qq) for qq in logs['q']]),
+            gripper_status=np.array(self._logs['gripper']),
+            action=np.array(self._logs['action']),
+            franka_t=np.array(logs['time']),
+            gripper_t=np.array(self._logs['time']),
+            wrist_frame_t=np.array(self.wrist_camera.time),
+            camera_frame_t=np.array(self.primary_camera.time)
+        )
         
-        camera_frame_t = np.array(self.primary_camera.time)
-        camera_frame_t = (camera_frame_t - self._logs['time'][0]) / 1e9
-        
-        # now we re-sample gripper (gripper_status / gripper_t) and franka_* to camera_frame_t (i.e., 30 Hz) by looking for the indices whose timestamp is closest to the camera_frame_t
-        franka_resampled_indices = np.searchsorted(franka_t, camera_frame_t)
-        gripper_resampled_indices = np.searchsorted(gripper_t, camera_frame_t)
-        wrist_resampled_indices = np.searchsorted(wrist_frame_t, camera_frame_t)
-        
-        #check whether the resampled indices are of the same length for the wrist camera
-        # print(True if len(franka_resampled_indices) == len(gripper_resampled_indices) == len(wrist_resampled_indices) else False)
-
-        if franka_resampled_indices[-1] == len(franka_t):
-            franka_resampled_indices[-1] = len(franka_t) - 1
-        if gripper_resampled_indices[-1] == len(gripper_t):
-            gripper_resampled_indices[-1] = len(gripper_t) - 1
-        if wrist_resampled_indices[-1] == len(wrist_frame_t):
-            wrist_resampled_indices[-1] = len(wrist_frame_t) - 1
-
-        franka_t = franka_t[franka_resampled_indices]
-        franka_q = franka_q[franka_resampled_indices]
-        franka_dq = franka_dq[franka_resampled_indices]
-        franka_pose = franka_pose[franka_resampled_indices]
-        
-        gripper_t = gripper_t[gripper_resampled_indices]
-        gripper_status = gripper_status[gripper_resampled_indices]
-        action = action[gripper_resampled_indices, ::]  
-        
-        wrist_frame_t = wrist_frame_t[wrist_resampled_indices]
-        
-        # remove near-zero velocity frames
-        gripper_status_lag1 = gripper_status[1:]
-        gripper_status_lag1 = np.append(gripper_status_lag1, gripper_status_lag1[-1])
-        gripper_status_diff = np.abs(gripper_status_lag1 - gripper_status)
-        
-        gripper_status_diff_extended = np.zeros_like(gripper_status_diff)
-        # if there is a 1 in the diff, extend it to the next 3 frames
-        # so we do not filter out the near-zero velocity frames in the middle of a gripper opening/closing
-        for i in range(len(gripper_status_diff)):
-            if gripper_status_diff[i] == 1:
-                gripper_status_diff_extended[i:i+3] = 1
-        
-        has_nearzero_velocity = lambda x: np.sum(np.abs(franka_dq[x])) + gripper_status_diff_extended[x] < 0.02
-        indexes_to_keep = [i for i in range(len(franka_dq)) if not has_nearzero_velocity(i)]
-        
-        franka_t = franka_t[indexes_to_keep]
-        franka_q = franka_q[indexes_to_keep]
-        franka_dq = franka_dq[indexes_to_keep]
-        franka_pose = franka_pose[indexes_to_keep]
-        gripper_t = gripper_t[indexes_to_keep]
-        gripper_status = gripper_status[indexes_to_keep]
-        action = action[indexes_to_keep]
-        camera_frame_t = camera_frame_t[indexes_to_keep]     
-        wrist_frame_t = wrist_frame_t[indexes_to_keep]
-        
-        # log time alignment stats
-        # Now we have all the data we need, timestamp-aligned and sub-sampled at the same frame rate as the camera (ideally, 30Hz, if data collected through
-        # usb-3 port)
-        
-        assert(len(franka_t) == len(franka_q) == len(franka_dq) == len(franka_pose) == len(gripper_t) == len(gripper_status) == len(camera_frame_t) == len(action) == len(wrist_frame_t))
-        
-        data = []
-                
-        for i in range(len(franka_t)-1):
-            data.append({'franka_t':franka_t[i], 'franka_q':franka_q[i], 'franka_dq':franka_dq[i], 
-                         'franka_pose':franka_pose[i], 'gripper_t':gripper_t[i], 'gripper_status':gripper_status[i], 
-                         'action':action[i], 'camera_frame_t':camera_frame_t[i], 'wrist_frame_t':wrist_frame_t[i]})
-        
-        return data
+        return logstate
 
     def plot_velocity_sums(self, franka_dq):
         vels = []
@@ -241,11 +172,6 @@ class Logger:
 
         plt.plot(vels)
         plt.show()
-
-    def log(self, action):
-        self._logs['action'].append(action)
-        self._logs['gripper'].append(self.fc.is_gripping)
-        self._logs['time'].append(time.time_ns())
         
 
 if __name__ == "__main__":
