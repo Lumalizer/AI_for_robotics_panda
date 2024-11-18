@@ -22,8 +22,7 @@ class FrankaController:
                  angle_conversion_factor=15,
                  mouse_axes_conversion=SpaceMouseState(1, 1, 1, 1, 1, 1),
                  
-                 step_duration_s=0.2,
-                 step_duration_s_spacemouse=0.01,
+                 step_duration_s=1/30,
                  
                  fps=30,
                  
@@ -39,7 +38,6 @@ class FrankaController:
         self.dataset_name = dataset_name
         
         self.step_duration_s = step_duration_s
-        self.step_duration_s_spacemouse = step_duration_s_spacemouse
         
         self.fps = fps
         
@@ -100,13 +98,12 @@ class FrankaController:
 
     def enable_spacemouse_control(self, event: threading.Event, log=True, release_gripper_on_exit=True, reset=True):
         # print(f"Starting SpaceMouse control for {self.max_runtime} seconds...")
-        self.env.step_duration_s = self.step_duration_s_spacemouse
         recorded_successfully = False
         
         log and self.logger.enter_logging()        
         
         while event.is_set():
-            mouse = self.spacemouse_controller.read()            
+            mouse = self.spacemouse_controller.read() 
             action = np.array([*mouse.delta_pos, *mouse.delta_rot, self.is_gripping])
             
             self.logger.log(action)
@@ -118,8 +115,6 @@ class FrankaController:
         
         if release_gripper_on_exit and self.is_gripping:
             self.toggle_gripper()
-            
-        self.env.step_duration_s = self.step_duration_s
         
         if reset:
             self.env.reset()

@@ -1,6 +1,7 @@
 import pyspacemouse
 from dataclasses import dataclass
 import time
+import threading
 
 # axis -> positive / negative
 # y -> forward / backward
@@ -51,13 +52,24 @@ class SpaceMouseController:
         success = pyspacemouse.open(button_callback=button_callback)
         if not success:
             exit()
+            
+        self.latest_state = pyspacemouse.read()
+        self.update_latest_state_thread = threading.Thread(target=self.update_latest_state_thread_fn, daemon=True)
+        self.update_latest_state_thread.start()
 
         self.conversion_factor = conversion_factor
         self.angle_conversion_factor = angle_conversion_factor
         self.mouse_axes_conversion = mouse_axes_conversion
+        
+        
+        
+    def update_latest_state_thread_fn(self):
+        while True:
+            self.latest_state = pyspacemouse.read()
+            time.sleep(0.01)
 
     def read(self) -> SpaceMouseState:
-        state = pyspacemouse.read()
+        state = self.latest_state
 
         x, y, z = state.x, state.y, state.z
         roll, pitch, yaw = state.roll, state.pitch, state.yaw
@@ -87,7 +99,6 @@ class SpaceMouseController:
         state = SpaceMouseState(x, y, z, roll, pitch, yaw)
 
         return state*self.mouse_axes_conversion
-
 
     def close(self):
         pyspacemouse.close()
