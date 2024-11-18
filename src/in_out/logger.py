@@ -125,7 +125,7 @@ class Logger:
 
     def get_ep_num_to_log(self, dataset_path):
         files = os.listdir(dataset_path)
-        existing_ep_nums = [int(f.split("episode_")[1].replace(".npy", ""))for f in files if f.endswith('.npy')]
+        existing_ep_nums = [int(f.split("episode_")[1].replace(".pkl", ""))for f in files if f.endswith('.pkl')]
             
         if not existing_ep_nums:
             return 1
