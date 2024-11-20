@@ -48,8 +48,12 @@ class EpisodeLogState:
             franka_resampled_indices[-1] = len(franka_t) - 1
         if gripper_resampled_indices[-1] == len(gripper_t):
             gripper_resampled_indices[-1] = len(gripper_t) - 1
+        if gripper_resampled_indices[-2] == len(self.gripper_status):
+            gripper_resampled_indices[-2] = len(self.gripper_status) - 1
         if wrist_resampled_indices[-1] == len(wrist_frame_t):
             wrist_resampled_indices[-1] = len(wrist_frame_t) - 1
+        if wrist_resampled_indices[-2] == len(wrist_frame_t):
+            wrist_resampled_indices[-2] = len(wrist_frame_t) - 1
 
         self.franka_q = self.franka_q[franka_resampled_indices]
         self.franka_dq = self.franka_dq[franka_resampled_indices]

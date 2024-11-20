@@ -11,7 +11,7 @@ from in_out.episode_logstate import EpisodeLogState
 class AirNet(tfds.core.GeneratorBasedBuilder):
     """DatasetBuilder for example dataset."""
 
-    VERSION = tfds.core.Version('1.0.10')    
+    VERSION = tfds.core.Version('1.0.14')    
     RELEASE_NOTES = {
       '1.0.0': 'Initial release.',
       '1.0.1': 'hover_simple_ds',
@@ -24,6 +24,10 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
       '1.0.8': 'octo_with_wrist',
       '1.0.9': 'octo_with_wrist_fixed',
       '1.0.10': 'octo_with_wrist_fixed',
+      '1.0.11': 'octo_with_wrist_RAW',
+      '1.0.12': 'octo_with_wrist_RAW_diagnostic_close',
+      '1.0.13': 'octo_with_wrist_RAW_diagnostic_wide',
+      '1.0.14': 'octo_with_wrist_RAW_diagnostic_wide'
     }
     # make sure the name matches the folder
     
@@ -42,13 +46,13 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
                 'steps': tfds.features.Dataset({
                     'observation': tfds.features.FeaturesDict({
                         'primary_image': tfds.features.Image(
-                            shape=(256, 256, 3),
+                            shape=(480, 640, 3),
                             dtype=np.uint8,
                             encoding_format='png',
                             doc='Main camera RGB observation.',
                         ),
                         'wrist_image': tfds.features.Image(
-                            shape=(256, 256, 3),
+                            shape=(480, 640, 3),
                             dtype=np.uint8,
                             encoding_format='png',
                             doc='Wrist camera RGB observation.',
@@ -135,7 +139,7 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
                 ret, frame = cap.read()
                 if not ret:
                     break
-                frame = self.crop_and_resize(frame, 256) # TODO different size, augmentation, etc
+                # frame = self.crop_and_resize(frame, 256) # TODO different size, augmentation, etc
                 frames.append(frame)
                 
             cap.release()

@@ -10,7 +10,7 @@ import requests
 from controller.realfranka_env import RealFrankaEnv
 import base64
 import zlib
-
+import cv2
 
 class FrankaController:
     def __init__(self,
@@ -167,9 +167,11 @@ class FrankaController:
                 
     def to_base64(self, img:np.ndarray) -> str:
         return base64.b64encode(zlib.compress(img.tobytes())).decode('utf-8')
+    
+    def resize_image(self, img:np.ndarray, size:int=256) -> np.ndarray:
+        return cv2.resize(img, (size, size))
                 
-    def run_from_server(self, ip:str="http://0.0.0.0:8000/act", instruction=None, max_seconds=5):
-        
+    def run_from_server(self, ip:str="http://0.0.0.0:8000/act", instruction=None, max_seconds=15):
         if not instruction:
             instruction = input(f"Enter instruction (or keep empty to ({instruction}): ")
 
@@ -186,15 +188,21 @@ class FrankaController:
             if (time.time() - start) > max_seconds:
                 break
             state = self.get_current_state_for_inference()
-            data = {"instruction": instruction, "state": state['proprio']}
+            # data = {"instruction": instruction, "state": state['proprio']}
+            data = {"instruction": instruction}
             
             if state["primary_image"] is not None:
-                data["primary_image"] = self.to_base64(state['primary_image'])
+                img1 = state['primary_image']
+                img1 = self.resize_image(img1[0])
+                data["primary_image"] = self.to_base64(img1)
             if state["wrist_image"] is not None:
-                data["wrist_image"] = self.to_base64(state['wrist_image'])
+                img2 = state['wrist_image']
+                img2 = self.resize_image(img2[0])
+                data["wrist_image"] = self.to_base64(img2)
                 
             try:
                 action = requests.post(ip, json=data).json()
+                print(action)
                 self.env.step(action)
             except Exception as e:
                 print(f"Error in server communication: {e}")

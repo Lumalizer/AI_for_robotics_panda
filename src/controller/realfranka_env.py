@@ -72,7 +72,7 @@ def franka_controller_process(franka_ip, action_space, conn, parent_conn_gripper
                     except IndexError:
                         # this means we are using octo
                         new_action = new_action[0]
-                        multiplier = 0.03
+                        multiplier = 0.02
                 
                     if action_space == "cartesian":
                         # TODO: remove this hack

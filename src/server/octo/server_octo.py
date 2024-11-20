@@ -52,12 +52,10 @@ import json_numpy
 json_numpy.patch()
 import argparse
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--octo_path', type=str, required=True)
-args = parser.parse_args()
-
-
-
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--octo_path', type=str, required=True)
+    return parser.parse_args()
 
 class OctoServer:
     def __init__(self, octo_path: Union[str, Path]):
@@ -98,7 +96,7 @@ class OctoServer:
                 'image_primary': primary_image,
                 'image_wrist': wrist_image,
                 'timestep_pad_mask': np.full((1, primary_image.shape[1]), True, dtype=bool),
-                'proprio': payload["state"]
+                # 'proprio': payload["state"]
             }
             task = self.model.create_tasks(texts=instruction)                  # for language conditioned
 
@@ -133,24 +131,25 @@ class OctoServer:
         uvicorn.run(self.app, host=host, port=port)
 
 
-@dataclass
-class DeployConfig:
-    # fmt: off
-    model = "octo"
-    # octo_path = "/home/u950323/trained-models/octo_checkpoints/air_net"
-    octo_path = args.octo_path
+# @dataclass
+# class DeployConfig:
+#     # fmt: off
+#     model = "octo"
+#     # octo_path = "/home/u950323/trained-models/octo_checkpoints/air_net"
+#     octo_path = args.octo_path
 
-    # Server Configuration
-    host: str = "0.0.0.0"                                               # Host IP Address
-    port: int = 8000                                                    # Host Port
-    # fmt: on
+#     # Server Configuration
+#     host: str = "0.0.0.0"                                               # Host IP Address
+#     port: int = 8000                                                    # Host Port
+#     # fmt: on
 
 
 @draccus.wrap()
-def deploy(cfg: DeployConfig) -> None:
-    server = OctoServer(cfg.octo_path)
-    server.run(cfg.host, port=cfg.port)
+def deploy(octo_path: str) -> None:
+    server = OctoServer(octo_path)
+    server.run("0.0.0.0", port=8000)
 
 
 if __name__ == "__main__":
-    deploy()
+    args = parse_args()
+    deploy(args.octo_path)

@@ -274,7 +274,7 @@ def main(_):
         train_state, update_info = train_step(train_state, train_batch)
 
 
-        if (i + 1) % 1000 == 0:
+        if (i + 1) % 100 == 0:
             update_info = jax.device_get(update_info)
             wandb.log(
                 flax.traverse_util.flatten_dict({"training": update_info}, sep="/"),
@@ -288,7 +288,7 @@ def main(_):
                 step=i
             )
 
-        if (i + 1) % 2000 == 0:
+        if (i + 1) % 500 == 0:
             # save checkpoint
             train_state.model.save_pretrained(step=i, checkpoint_path=FLAGS.save_dir)
         
