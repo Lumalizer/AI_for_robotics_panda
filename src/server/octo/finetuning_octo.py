@@ -62,6 +62,49 @@ def main(_):
     logging.info("Loading pre-trained model...")
     pretrained_model = OctoModel.load_pretrained(FLAGS.pretrained_path)
 
+    # We augment differently for the primary and wrist cameras
+    primary_augment_kwargs = dict(
+        random_resized_crop=dict(scale=[0.8, 1.0], ratio=[0.9, 1.1]),
+        random_brightness=[0.1],
+        random_contrast=[0.9, 1.1],
+        random_saturation=[0.9, 1.1],
+        random_hue=[0.05],
+        augment_order=[
+            "random_resized_crop",
+            "random_brightness",
+            "random_contrast",
+            "random_saturation",
+            "random_hue",
+        ],
+    )
+    wrist_augment_kwargs = dict(
+        random_brightness=[0.1],
+        random_contrast=[0.9, 1.1],
+        random_saturation=[0.9, 1.1],
+        random_hue=[0.05],
+        augment_order=[
+            "random_brightness",
+            "random_contrast",
+            "random_saturation",
+            "random_hue",
+        ],
+    )
+
+    # ML-collections complains if the type of an existing field changes
+    # so we delete and re-add the field
+
+    # del config["dataset_kwargs"]["frame_transform_kwargs"]["resize_size"]
+    # del config["dataset_kwargs"]["frame_transform_kwargs"]["image_augment_kwargs"]
+
+    # config["dataset_kwargs"]["frame_transform_kwargs"]["resize_size"] = {
+    #     "primary": (256, 256),  # workspace camera is at 256x256
+    #     "wrist": (128, 128),  # wrist camera is at 128x128
+    # }
+    # config["dataset_kwargs"]["frame_transform_kwargs"]["image_augment_kwargs"] = {
+    #     "primary": primary_augment_kwargs,
+    #     "wrist": wrist_augment_kwargs,
+    # }
+
     # make finetuning dataset
     # apply Gaussian normalization, load chunks of 50 actions since we'll train with action chunking
     # delete goal images in the data loader since we will train a language-conditioned-only policy
@@ -72,7 +115,7 @@ def main(_):
             name="air_net",
             data_dir=FLAGS.data_dir,
             image_obs_keys={"primary": 'primary_image', "wrist": 'wrist_image'},
-            proprio_obs_key="state",
+            # proprio_obs_key="state",
             language_key="language_instruction",
         ),
         traj_transform_kwargs=dict(
@@ -81,6 +124,7 @@ def main(_):
         ),
         frame_transform_kwargs=dict(
             resize_size={"primary": (256, 256), "wrist": (256, 256)},
+            image_augment_kwargs={"primary": primary_augment_kwargs, "wrist": wrist_augment_kwargs}
         ),
         train=True,
     )
@@ -90,7 +134,7 @@ def main(_):
             name="air_net",
             data_dir=FLAGS.data_dir,
             image_obs_keys={"primary": 'primary_image', "wrist": 'wrist_image'},
-            proprio_obs_key="state",
+            # proprio_obs_key="state",
             language_key="language_instruction",
         ),
         traj_transform_kwargs=dict(
@@ -99,6 +143,7 @@ def main(_):
         ),
         frame_transform_kwargs=dict(
             resize_size={"primary": (256, 256), "wrist": (256, 256)},
+            image_augment_kwargs={"primary": primary_augment_kwargs, "wrist": wrist_augment_kwargs}
         ),
         train=False,
     )
@@ -133,17 +178,20 @@ def main(_):
     # load pre-training config and modify --> remove wrist cam, add proprio input, change action head
     # following Zhao et al. we use "action chunks" of length 50 and L1 loss for ALOHA
     config = pretrained_model.config
+    
     # !dont remove wrist cam, beacuse we are using it too
     # del config["model"]["observation_tokenizers"]["wrist"]
     ###
-    config["model"]["observation_tokenizers"]["proprio"] = ModuleSpec.create(
-        LowdimObsTokenizer,
-        n_bins=256,
-        bin_type="normal",
-        low=-2.0,
-        high=2.0,
-        obs_keys=["proprio"],
-    )
+
+    # config["model"]["observation_tokenizers"]["proprio"] = ModuleSpec.create(
+    #     LowdimObsTokenizer,
+    #     n_bins=256,
+    #     bin_type="normal",
+    #     low=-2.0,
+    #     high=2.0,
+    #     obs_keys=["proprio"],
+    # )
+
     # Fully override the old action head with a new one (for smaller changes, you can use update_config)
     config["model"]["heads"]["action"] = ModuleSpec.create(
         L1ActionHead,
@@ -221,12 +269,12 @@ def main(_):
     logging.info("Starting finetuning...")
 
     val_batch = next(val_data_iter)
-    for i in tqdm.tqdm(range(5000), total=5000, dynamic_ncols=True):
+    for i in tqdm.tqdm(range(20000), total=20000, dynamic_ncols=True):
         train_batch = next(train_data_iter)
         train_state, update_info = train_step(train_state, train_batch)
 
 
-        if (i + 1) % 100 == 0:
+        if (i + 1) % 1000 == 0:
             update_info = jax.device_get(update_info)
             wandb.log(
                 flax.traverse_util.flatten_dict({"training": update_info}, sep="/"),
@@ -240,7 +288,7 @@ def main(_):
                 step=i
             )
 
-        if (i + 1) % 1000 == 0:
+        if (i + 1) % 2000 == 0:
             # save checkpoint
             train_state.model.save_pretrained(step=i, checkpoint_path=FLAGS.save_dir)
         
