@@ -13,8 +13,8 @@ cd octo
 
 # Default values
 PRETRAINED_PATH="hf://rail-berkeley/octo-small-1.5"
-DATA_DIR="~/tfds_datasets"
-SAVE_DIR="trained_models"
+DATA_DIR="$HOME/tfds_datasets"
+SAVE_DIR="$HOME/octo/trained_models/"
 BATCH_SIZE=16
 
 # Parse named arguments
@@ -39,4 +39,4 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-python octo_finetuning.py --pretrained_path=$PRETRAINED_PATH --data_dir=$DATA_DIR --save_dir=$SAVE_DIR --batch_size=$BATCH_SIZE
+python finetuning_octo.py --pretrained_path=$PRETRAINED_PATH --data_dir=$DATA_DIR --save_dir=$SAVE_DIR --batch_size=$BATCH_SIZE

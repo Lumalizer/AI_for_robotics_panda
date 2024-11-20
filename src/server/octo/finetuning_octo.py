@@ -80,7 +80,7 @@ def main(_):
             action_horizon=4, #50
         ),
         frame_transform_kwargs=dict(
-            resize_size={"primary_image": (256, 256), "wrist_image": (256, 256)},
+            resize_size={"primary": (256, 256), "wrist": (256, 256)},
         ),
         train=True,
     )
@@ -98,7 +98,7 @@ def main(_):
             action_horizon=4, #50
         ),
         frame_transform_kwargs=dict(
-            resize_size={"primary_image": (256, 256), "wrist_image": (256, 256)},
+            resize_size={"primary": (256, 256), "wrist": (256, 256)},
         ),
         train=False,
     )
