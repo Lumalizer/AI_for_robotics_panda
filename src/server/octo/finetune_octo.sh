@@ -37,6 +37,6 @@ if [ -z "$NAME" ]; then
 fi
 
 # Combine NAME with DATA_DIR to make the new data directory
-SAVE_DIR="$DATA_DIR/$NAME"
+SAVE_DIR="$SAVE_DIR/$NAME"
 
 python finetuning_octo.py --pretrained_path=$PRETRAINED_PATH --data_dir=$DATA_DIR --save_dir=$SAVE_DIR --batch_size=$BATCH_SIZE
