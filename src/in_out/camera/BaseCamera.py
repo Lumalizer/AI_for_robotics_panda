@@ -59,15 +59,17 @@ class BaseCamera:
             print(f"Camera not connected. {e}")
             raise
         
-    def crop_and_resize(self, image, dimension):
-        height, width = image.shape[:2]
-        min_dim = min(height, width)
-
-        start_x = (width - min_dim) // 2
-        start_y = (height - min_dim) // 2
-
-        cropped_image = image[start_y:start_y + min_dim, start_x:start_x + min_dim]
-        resized_image = cv2.resize(cropped_image, (dimension, dimension))
+    def crop_and_resize(self, image):
+        height_original, width_original = image.shape[:2]
+        
+        if height_original < self.height or width_original < self.width:
+            raise ValueError("Original image is smaller than desired size.")
+        
+        start_x = (width_original - self.width) // 2
+        start_y = (height_original - self.height) // 2
+        
+        cropped_image = image[start_y:start_y + self.height, start_x:start_x + self.width]
+        resized_image = cv2.resize(cropped_image, (self.width, self.height))
 
         return resized_image
     

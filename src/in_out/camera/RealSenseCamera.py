@@ -40,7 +40,7 @@ class RealSenseCamera(BaseCamera):
         np_image = np.asanyarray(rgb_data)
 
         # resize
-        # np_image = self.crop_and_resize(np_image, 256)
+        np_image = self.crop_and_resize(np_image)
         np_image = cv2.cvtColor(np_image, cv2.COLOR_BGR2RGB)
 
         return np_image
