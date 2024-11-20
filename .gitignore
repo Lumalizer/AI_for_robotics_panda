@@ -1,7 +1,6 @@
 # our ignores
 logs
 examples
-octo
 trained_models
 wandb
 datasets
