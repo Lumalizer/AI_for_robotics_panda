@@ -52,6 +52,12 @@ import os.path
 import json_numpy
 json_numpy.patch()
 
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--openvla_path', type=str, required=True)
+args = parser.parse_args()
+
 # === Utilities ===
 SYSTEM_PROMPT = (
     "A chat between a curious user and an artificial intelligence assistant. "
@@ -133,7 +139,7 @@ class OpenVLAServer:
 class DeployConfig:
     # fmt: off
     model = "openvla"                                                   # Model to use:  "octo" or "openvla"
-    openvla_path = "openvla/"                                # HF Hub Path (or path to local run directory)
+    openvla_path = args.openvla_path                               # HF Hub Path (or path to local run directory)
 
     # Server Configuration
     host: str = "0.0.0.0"                                               # Host IP Address

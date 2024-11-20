@@ -54,8 +54,15 @@ from prismatic.extern.hf.processing_prismatic import PrismaticImageProcessor, Pr
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # parse a name with argparse
-parser = argparse.ArgumentParser(description='Base model name')
-parser.add_argument('--name', type=str, default="")
+parser = argparse.ArgumentParser(description='VLA model name, data root directory, and run root directory')
+parser.add_argument('--name', type=str)
+parser.add_argument('--data_root_dir', type=str)
+parser.add_argument('--run_root_dir', type=str)
+# add arguments for batch size max steps save steps image aug
+parser.add_argument('--batch_size', type=int, default=8)
+parser.add_argument('--max_steps', type=int, default=200)
+parser.add_argument('--save_steps', type=int, default=20)
+parser.add_argument('--image_aug', type=bool, default=True)
 args = parser.parse_args()
 
 # # === Utilities ===
@@ -84,9 +91,11 @@ class FinetuneConfig:
     vla_path: str = "openvla/openvla-7b"                            # Path to OpenVLA model (on HuggingFace Hub)
 
     # Directory Paths
-    data_root_dir: Path = Path("/home/u950323/openvla/openvla/data_finetune")        # Path to Open-X dataset directory
+    # data_root_dir: Path = Path("/home/u950323/openvla/openvla/data_finetune")        # Path to Open-X dataset directory
+    data_root_dir: Path = Path(args.data_root_dir)        # Path to Open-X dataset directory
     dataset_name: str = "air_net"                                # Name of fine-tuning dataset (e.g., `droid_wipe`)
-    run_root_dir: Path = Path("/home/u950323/trained-models/openvla_finetuned")                               # Path to directory to store logs & checkpoints
+    # run_root_dir: Path = Path("/home/u950323/trained-models/openvla_finetuned")                               # Path to directory to store logs & checkpoints
+    run_root_dir: Path = Path(args.run_root_dir)                              # Path to directory to store logs & checkpoints
     adapter_tmp_dir: Path = Path("adapter-tmp")                     # Temporary directory for LoRA weights before fusing
 
     # Fine-tuning Parameters

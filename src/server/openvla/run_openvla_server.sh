@@ -11,4 +11,6 @@ conda activate openvla
 port=8000
 
 /usr/bin/ssh -i ~/ssh/ssh_key -N -f -R $port:localhost:$port portal.gpu4edu.uvt.nl
-python server_openvla.py
+
+openvla_path=$1
+python server_openvla.py --openvla_path $openvla_path
