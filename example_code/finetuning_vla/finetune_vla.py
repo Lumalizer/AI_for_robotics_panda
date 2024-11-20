@@ -24,6 +24,7 @@ from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
+import argparse
 
 import draccus
 import torch
@@ -52,6 +53,10 @@ from prismatic.extern.hf.processing_prismatic import PrismaticImageProcessor, Pr
 # Sane Defaults
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
+# parse a name with argparse
+parser = argparse.ArgumentParser(description='Base model name')
+parser.add_argument('--name', type=str, default="")
+args = parser.parse_args()
 
 # # === Utilities ===
 # # fmt: off
@@ -75,23 +80,24 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 @dataclass
 class FinetuneConfig:
     # fmt: off
+    name: str = args.name
     vla_path: str = "openvla/openvla-7b"                            # Path to OpenVLA model (on HuggingFace Hub)
 
     # Directory Paths
     data_root_dir: Path = Path("/home/u950323/openvla/openvla/data_finetune")        # Path to Open-X dataset directory
     dataset_name: str = "air_net"                                # Name of fine-tuning dataset (e.g., `droid_wipe`)
-    run_root_dir: Path = Path("/home/u950323/openvla/openvla/data_save")                               # Path to directory to store logs & checkpoints
+    run_root_dir: Path = Path("/home/u950323/trained-models/openvla_finetuned")                               # Path to directory to store logs & checkpoints
     adapter_tmp_dir: Path = Path("adapter-tmp")                     # Temporary directory for LoRA weights before fusing
 
     # Fine-tuning Parameters
     batch_size: int = 8                                            # Fine-tuning batch size
-    max_steps: int = 1000                                        # Max number of fine-tuning steps
-    save_steps: int = 250                                           # Interval for checkpoint saving
+    max_steps: int = 200                                           # Max number of fine-tuning steps
+    save_steps: int = 20                                          # Interval for checkpoint saving
     learning_rate: float = 5e-4                                     # Fine-tuning learning rate
     grad_accumulation_steps: int = 2                                # Gradient accumulation steps
-    image_aug: bool = False                                         # Whether to train with image augmentations
+    image_aug: bool = True                                       # Whether to train with image augmentations
     shuffle_buffer_size: int = 100_000                              # Dataloader shuffle buffer size (can reduce if OOM)
-    save_latest_checkpoint_only: bool = True                        # Whether to save only one checkpoint per run and
+    save_latest_checkpoint_only: bool = False                        # Whether to save only one checkpoint per run and
                                                                     #   continually overwrite the latest checkpoint
                                                                     #   (If False, saves all checkpoints)
 
@@ -122,7 +128,7 @@ def finetune(cfg: FinetuneConfig) -> None:
 
     # Configure Unique Experiment ID & Log Directory
     exp_id = (
-        f"{cfg.vla_path.split('/')[-1]}+{cfg.dataset_name}"
+        f"{cfg.name}_{cfg.vla_path.split('/')[-1]}+{cfg.dataset_name}"
         f"+b{cfg.batch_size * cfg.grad_accumulation_steps}"
         f"+lr-{cfg.learning_rate}"
     )
@@ -175,7 +181,7 @@ def finetune(cfg: FinetuneConfig) -> None:
             r=cfg.lora_rank,
             lora_alpha=min(cfg.lora_rank, 16),
             lora_dropout=cfg.lora_dropout,
-           target_modules="all-linear",
+            target_modules="all-linear",
             init_lora_weights="gaussian",
         )
         vla = get_peft_model(vla, lora_config)
@@ -234,7 +240,7 @@ def finetune(cfg: FinetuneConfig) -> None:
         vla_dataset,
         batch_size=cfg.batch_size,
         sampler=None,
-       collate_fn=collator,
+        collate_fn=collator,
         num_workers=0,  # Important =>> Set to 0 if using RLDS; TFDS rolls its own parallelism!
     )
 
@@ -352,7 +358,7 @@ def finetune(cfg: FinetuneConfig) -> None:
                     )
                     merged_vla = PeftModel.from_pretrained(base_vla, adapter_dir)
                     merged_vla = merged_vla.merge_and_unload()
-                if distributed_state.is_main_process:
+                    if distributed_state.is_main_process:
                         if cfg.save_latest_checkpoint_only:
                             # Overwrite latest checkpoint
                             merged_vla.save_pretrained(run_dir)
@@ -383,5 +389,3 @@ def finetune(cfg: FinetuneConfig) -> None:
 
 if __name__ == "__main__":
     finetune()
-
-
