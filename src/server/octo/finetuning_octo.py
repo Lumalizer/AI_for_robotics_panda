@@ -36,7 +36,7 @@ flags.DEFINE_string(
 )
 flags.DEFINE_string("data_dir", None, "Path to finetuning dataset, in RLDS format.")
 flags.DEFINE_string("save_dir", None, "Directory for saving finetuning checkpoints.")
-flags.DEFINE_integer("batch_size", 128, "Batch size for finetuning.")
+flags.DEFINE_string("wandb_name", "finetune_octo", "Name of the wandb run.")
 
 
 flags.DEFINE_bool(
@@ -44,6 +44,11 @@ flags.DEFINE_bool(
     False,
     "Whether pre-trained transformer weights should be frozen.",
 )
+
+flags.DEFINE_integer("batch_size", 128, "Batch size for finetuning.")
+flags.DEFINE_integer("action_horizon", 4, "Action horizon for the action head.")
+flags.DEFINE_integer("window_size", 2, "Window size")
+flags.DEFINE_integer("steps", 20000, "Number of finetuning steps.")
 
 
 def main(_):
@@ -56,7 +61,7 @@ def main(_):
     tf.config.set_visible_devices([], "GPU")
 
     # setup wandb for logging
-    wandb.init(name="finetune_octo", project="octo")
+    wandb.init(name=FLAGS.wandb_name, project="octo")
 
     # load pre-trained model
     logging.info("Loading pre-trained model...")
@@ -119,11 +124,11 @@ def main(_):
             language_key="language_instruction",
         ),
         traj_transform_kwargs=dict(
-            window_size=2,
-            action_horizon=4, #50
+            window_size=FLAGS.window_size,
+            action_horizon=FLAGS.action_horizon,
         ),
         frame_transform_kwargs=dict(
-            resize_size={"primary": (256, 256), "wrist": (256, 256)},
+            resize_size={"primary": (256, 256), "wrist": (128, 128)},
             image_augment_kwargs={"primary": primary_augment_kwargs, "wrist": wrist_augment_kwargs}
         ),
         train=True,
@@ -138,11 +143,11 @@ def main(_):
             language_key="language_instruction",
         ),
         traj_transform_kwargs=dict(
-            window_size=1,
-            action_horizon=4, #50
+            window_size=FLAGS.window_size,
+            action_horizon=FLAGS.action_horizon,
         ),
         frame_transform_kwargs=dict(
-            resize_size={"primary": (256, 256), "wrist": (256, 256)},
+            resize_size={"primary": (256, 256), "wrist": (128, 128)},
             image_augment_kwargs={"primary": primary_augment_kwargs, "wrist": wrist_augment_kwargs}
         ),
         train=False,
@@ -175,13 +180,7 @@ def main(_):
 
     val_data_iter = map(process_batch, val_data_iter)
 
-    # load pre-training config and modify --> remove wrist cam, add proprio input, change action head
-    # following Zhao et al. we use "action chunks" of length 50 and L1 loss for ALOHA
     config = pretrained_model.config
-    
-    # !dont remove wrist cam, beacuse we are using it too
-    # del config["model"]["observation_tokenizers"]["wrist"]
-    ###
 
     # config["model"]["observation_tokenizers"]["proprio"] = ModuleSpec.create(
     #     LowdimObsTokenizer,
@@ -195,7 +194,7 @@ def main(_):
     # Fully override the old action head with a new one (for smaller changes, you can use update_config)
     config["model"]["heads"]["action"] = ModuleSpec.create(
         L1ActionHead,
-        action_horizon=4, #50
+        action_horizon=FLAGS.action_horizon,
         action_dim=7,
         readout_key="readout_action",
     )
@@ -269,7 +268,7 @@ def main(_):
     logging.info("Starting finetuning...")
 
     val_batch = next(val_data_iter)
-    for i in tqdm.tqdm(range(20000), total=20000, dynamic_ncols=True):
+    for i in tqdm.tqdm(range(FLAGS.steps), total=FLAGS.steps, dynamic_ncols=True):
         train_batch = next(train_data_iter)
         train_state, update_info = train_step(train_state, train_batch)
 
@@ -288,7 +287,7 @@ def main(_):
                 step=i
             )
 
-        if (i + 1) % 500 == 0:
+        if (i + 1) % 1000 == 0:
             # save checkpoint
             train_state.model.save_pretrained(step=i, checkpoint_path=FLAGS.save_dir)
         

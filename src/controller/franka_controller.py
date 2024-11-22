@@ -197,7 +197,7 @@ class FrankaController:
                 data["primary_image"] = self.to_base64(img1)
             if state["wrist_image"] is not None:
                 img2 = state['wrist_image']
-                img2 = self.resize_image(img2[0])
+                img2 = self.resize_image(img2[0], size=128)
                 data["wrist_image"] = self.to_base64(img2)
                 
             try:

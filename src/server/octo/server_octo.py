@@ -84,7 +84,7 @@ class OctoServer:
             unnorm_key = payload.get("unnorm_key", None)
 
             primary_image = np.frombuffer(zlib.decompress(base64.b64decode(primary_image)), dtype=np.uint8).reshape((1, 1, 256, 256, 3))
-            wrist_image = np.frombuffer(zlib.decompress(base64.b64decode(wrist_image)), dtype=np.uint8).reshape((1, 1, 256, 256, 3))
+            wrist_image = np.frombuffer(zlib.decompress(base64.b64decode(wrist_image)), dtype=np.uint8).reshape((1, 1, 128, 128, 3))
             
             if isinstance(instruction, str):
                 instruction = [instruction]
