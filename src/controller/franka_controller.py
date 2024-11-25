@@ -11,6 +11,7 @@ from controller.realfranka_env import RealFrankaEnv
 import base64
 import zlib
 import cv2
+from controller.wrappers_octo import RHCWrapper
 
 class FrankaController:
     def __init__(self,
@@ -23,13 +24,16 @@ class FrankaController:
                  mouse_axes_conversion=SpaceMouseState(1, 1, 1, 1, 1, 1),
                  
                  step_duration_s=1/30,
+                 receding_horizon=None,
                  
                  fps=30,
                  
                  randomize_starting_position=False):
         
         self.env = env if env else RealFrankaEnv(step_duration_s=step_duration_s, action_space="cartesian")
-        
+        if receding_horizon:
+            self.env = RHCWrapper(self.env, receding_horizon)
+
         self.is_gripping = False
         self.is_pre_controlling = threading.Event() # allows moving the arm before recording logs
         self.is_recording = threading.Event()
