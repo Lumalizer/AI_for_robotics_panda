@@ -12,6 +12,7 @@ import base64
 import zlib
 import cv2
 from controller.wrappers_octo import RHCWrapper
+import random
 
 class FrankaController:
     def __init__(self,
@@ -19,7 +20,7 @@ class FrankaController:
                  logger:Logger=None, 
                  dataset_name="no_name",
                  
-                 conversion_factor=0.03, 
+                 conversion_factor=0.025, 
                  angle_conversion_factor=15,
                  mouse_axes_conversion=SpaceMouseState(1, 1, 1, 1, 1, 1),
                  
@@ -123,15 +124,17 @@ class FrankaController:
         if reset:
             self.env.reset()
             if self.randomize_starting_position:
-                n_steps = 5
+                n_steps = 25
+                
+                factor = random.choice([0, 0, 0, 1, 2, 3])
 
                 # Random dx dy dz dyaw dpitch droll on reset
-                dx = np.random.uniform(-0.1, 0.3) / n_steps
-                dy = np.random.uniform(-0.3, 0.3) / n_steps
-                dz = np.random.uniform(-0.3, 0) / n_steps
-                dyaw = np.random.uniform(-15, 15) / n_steps
-                dpitch = np.random.uniform(-15, 15) / n_steps
-                droll = np.random.uniform(-45, 45) / n_steps
+                dx = factor * np.random.uniform(-0.1, 0.3) / n_steps
+                dy = factor * np.random.uniform(-0.3, 0.3) / n_steps
+                dz = factor * np.random.uniform(-0.3, 0) / n_steps
+                dyaw = factor * np.random.uniform(-15, 15) / n_steps
+                dpitch = factor * np.random.uniform(-15, 15) / n_steps
+                droll = factor * np.random.uniform(-45, 45) / n_steps
 
                 for s in range(n_steps):
                     self.env.step(np.array([dx, dy, dz, dyaw, dpitch, droll, 0]))
