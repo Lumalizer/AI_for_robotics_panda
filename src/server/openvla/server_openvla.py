@@ -54,9 +54,10 @@ json_numpy.patch()
 
 import argparse
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--openvla_path', type=str, required=True)
-args = parser.parse_args()
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--openvla_path', type=str, required=True)
+    return parser.parse_args()
 
 # === Utilities ===
 SYSTEM_PROMPT = (
@@ -106,7 +107,7 @@ class OpenVLAServer:
                 payload = json.loads(payload["encoded"])
 
             # Parse payload components
-            image, instruction = payload["image"], payload["instruction"]
+            image, instruction = payload["primary_image"], payload["instruction"]
             unnorm_key = payload.get("unnorm_key", None)
 
             image = np.frombuffer(zlib.decompress(base64.b64decode(image)), dtype=np.uint8).reshape((256, 256, 3))
@@ -138,8 +139,8 @@ class OpenVLAServer:
 @dataclass
 class DeployConfig:
     # fmt: off
+    openvla_path: str                           # HF Hub Path (or path to local run directory)
     model = "openvla"                                                   # Model to use:  "octo" or "openvla"
-    openvla_path = args.openvla_path                               # HF Hub Path (or path to local run directory)
 
     # Server Configuration
     host: str = "0.0.0.0"                                               # Host IP Address
@@ -154,4 +155,7 @@ def deploy(cfg: DeployConfig) -> None:
 
 
 if __name__ == "__main__":
+    args = parse_args()
+    # cfg = DeployConfig(openvla_path=args.openvla_path)
+    DeployConfig.openvla_path = args.openvla_path
     deploy()
