@@ -27,7 +27,7 @@ def gripper_controller_process(franka_ip, conn):
         time.sleep(0.01)
     
 
-def franka_controller_process(franka_ip, action_space, conn, parent_conn_gripper):
+def franka_controller_process(franka_ip, action_space, conn, parent_conn_gripper, multiplier: int):
     fr3 = panda_py.Panda(franka_ip)
 
     if action_space == "cartesian":
@@ -64,11 +64,6 @@ def franka_controller_process(franka_ip, action_space, conn, parent_conn_gripper
                 cmd = conn.recv() # tuple:  ('action', [....]) or ('get_state')
                 if cmd[0] == 'action':
                     new_action = cmd[1]
-
-                    # openvla
-                    multiplier = 2
-                    # octo
-                    multiplier = 0.02
                 
                     if action_space == "cartesian":
                         # TODO: remove this hack
@@ -155,7 +150,7 @@ def franka_controller_process(franka_ip, action_space, conn, parent_conn_gripper
 
 
 class RealFrankaEnv(gym.Env):
-    def __init__(self, franka_ip="172.16.0.2", action_space="cartesian", step_duration_s=-1):
+    def __init__(self, franka_ip="172.16.0.2", action_space="cartesian", multiplier: int=1, step_duration_s=-1):
         """
             step_duration_s = -1 means no rate limit is enforced; equivalent to blocking=False
             action_space = "cartesian" or "joint"
@@ -173,7 +168,7 @@ class RealFrankaEnv(gym.Env):
         self.gripper_process.start()
         
         self.parent_conn, self.child_conn = Pipe()
-        self.controller_process = Process(target=franka_controller_process, args=(franka_ip, action_space, self.child_conn, self.parent_conn_gripper))
+        self.controller_process = Process(target=franka_controller_process, args=(franka_ip, action_space, self.child_conn, self.parent_conn_gripper, multiplier))
         self.controller_process.start()
         
         if action_space == "cartesian":

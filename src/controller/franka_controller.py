@@ -19,6 +19,7 @@ class FrankaController:
                  env:RealFrankaEnv=None,
                  logger:Logger=None, 
                  dataset_name="no_name",
+                 mode: str="demonstration",
                  
                  conversion_factor=0.03, 
                  angle_conversion_factor=15,
@@ -31,7 +32,17 @@ class FrankaController:
                  
                  randomize_starting_position=False):
         
-        self.env = env if env else RealFrankaEnv(step_duration_s=step_duration_s, action_space="cartesian")
+        if mode not in ['demonstration', 'openvla', 'octo']:
+            raise ValueError(f"Invalid mode: {mode}. Must be one of ['demonstration', 'openvla', 'octo']")
+    
+        if mode == 'openvla':
+            multiplier = 2
+        elif mode == 'octo':
+            multiplier = 0.02
+        elif mode == 'demonstration':
+            multiplier = 1
+        
+        self.env = env if env else RealFrankaEnv(step_duration_s=step_duration_s, multiplier=multiplier, action_space="cartesian")
         if receding_horizon:
             self.env = RHCWrapper(self.env, receding_horizon)
 
