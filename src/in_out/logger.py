@@ -87,12 +87,16 @@ class Logger:
             
             
             task_desc = input(f"""Enter task description such as 'pick up the red cube'
-                                or press ENTER to re-use the previous task description: ({self.previous_task_desc})
+                                or press ENTER to re-use the previous task description: (\033[92m{self.previous_task_desc}\033[0m)
                                 or type 'skip' to skip saving this trajectory: """).strip()
             if task_desc == 'skip':
                 return False
             elif not task_desc:
                 task_desc = self.previous_task_desc
+            elif len(task_desc) < 4:
+                task_desc = self.previous_task_desc
+                print("Task description too short, re-using previous task description.\n")
+                
             
             self.previous_task_desc = task_desc
             logs.task_description = task_desc

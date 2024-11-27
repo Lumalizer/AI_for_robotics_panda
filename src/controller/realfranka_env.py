@@ -64,22 +64,22 @@ def franka_controller_process(franka_ip, action_space, conn, parent_conn_gripper
                 cmd = conn.recv() # tuple:  ('action', [....]) or ('get_state')
                 if cmd[0] == 'action':
                     new_action = cmd[1]
-                    
-                    # TODO : fix this hack
-                    # multiplier = 1
-                    # try:
-                    #     gripper_action = new_action[6]
-                    # except IndexError:
-                    #     # this means we are using octo
-                    #     new_action = new_action[0]
-                    multiplier = 1
-                    # multiplier = 0.02
+
+                    # openvla
+                    multiplier = 2
+                    # octo
+                    multiplier = 0.02
                 
                     if action_space == "cartesian":
                         # TODO: remove this hack
                         delta_x = new_action[:3] *multiplier # delta_x, delta_y, delta_z
                         delta_rot = new_action[3:6] *multiplier # delta_yaw, delta_pitch, delta_roll
                         gripper_action = new_action[6]
+                        
+                        gripper_action = int(gripper_action > 0)
+                        
+                        if gripper_action > 0:
+                            print(gripper_action)
 
                         pose = fr3.get_pose().copy()
                         x = pose[0:3, 3]

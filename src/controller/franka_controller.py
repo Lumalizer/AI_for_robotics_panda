@@ -20,7 +20,7 @@ class FrankaController:
                  logger:Logger=None, 
                  dataset_name="no_name",
                  
-                 conversion_factor=0.025, 
+                 conversion_factor=0.03, 
                  angle_conversion_factor=15,
                  mouse_axes_conversion=SpaceMouseState(1, 1, 1, 1, 1, 1),
                  
@@ -178,7 +178,7 @@ class FrankaController:
     def resize_image(self, img:np.ndarray, size:int=256) -> np.ndarray:
         return cv2.resize(img, (size, size))
                 
-    def run_from_server(self, ip:str="http://0.0.0.0:8000/act", instruction=None, max_seconds=15):
+    def run_from_server(self, ip:str="http://0.0.0.0:8000/act", instruction=None, max_seconds=20):
         if not instruction:
             instruction = input(f"Enter instruction (or keep empty to ({instruction}): ")
 
@@ -209,7 +209,6 @@ class FrankaController:
                 
             try:
                 action = requests.post(ip, json=data).json()
-                print(action)
                 self.env.step(action)
             except Exception as e:
                 print(f"Error in server communication: {e}")

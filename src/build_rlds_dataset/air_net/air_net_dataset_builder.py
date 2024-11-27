@@ -11,7 +11,7 @@ from in_out.episode_logstate import EpisodeLogState
 class AirNet(tfds.core.GeneratorBasedBuilder):
     """DatasetBuilder for example dataset."""
 
-    VERSION = tfds.core.Version('1.0.14')    
+    VERSION = tfds.core.Version('1.0.15')    
     RELEASE_NOTES = {
       '1.0.0': 'Initial release.',
       '1.0.1': 'hover_simple_ds',
@@ -27,7 +27,8 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
       '1.0.11': 'octo_with_wrist_RAW',
       '1.0.12': 'octo_with_wrist_RAW_diagnostic_close',
       '1.0.13': 'octo_with_wrist_RAW_diagnostic_wide',
-      '1.0.14': 'octo_with_wrist_RAW_diagnostic_wide'
+      '1.0.14': 'octo_with_wrist_RAW_diagnostic_wide',
+      '1.0.15': 'grasp_blue_300',
     }
     # make sure the name matches the folder
     
