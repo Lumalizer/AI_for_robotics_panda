@@ -6,32 +6,45 @@ import tensorflow_datasets as tfds
 import tensorflow_hub as hub
 import cv2
 import pickle
-from in_out.episode_logstate import EpisodeLogState
+import os
+import sys
+
+# for multiprocessing
+# we need to add the module folder to python path for multiprocessing
+# $env:PYTHONPATH = "$env:PYTHONPATH;D:\Dev\AI_for_robotics_panda\src\build_rlds_dataset"
+# p = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../src/'))
+# p2 = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../src/build_rlds_dataset'))
+# sys.path.append(p)
+# sys.path.append(p2)
+
+from in_out.episode_logstate import EpisodeLogState  # comment out to allow parallel processing
+
 
 class AirNet(tfds.core.GeneratorBasedBuilder):
     """DatasetBuilder for example dataset."""
 
-    VERSION = tfds.core.Version('1.0.15')    
+    VERSION = tfds.core.Version('1.0.16')
     RELEASE_NOTES = {
-      '1.0.0': 'Initial release.',
-      '1.0.1': 'hover_simple_ds',
-      '1.0.2': 'hover_simple_ds_extend',
-      '1.0.3': 'hover_blue_logi',
-      '1.0.4': 'hover_blue_logi2',
-      '1.0.5': 'hover_blue_logi3',
-      '1.0.6': 'first_grasp',
-      '1.0.7': 'wrist_cam_test',
-      '1.0.8': 'octo_with_wrist',
-      '1.0.9': 'octo_with_wrist_fixed',
-      '1.0.10': 'octo_with_wrist_fixed',
-      '1.0.11': 'octo_with_wrist_RAW',
-      '1.0.12': 'octo_with_wrist_RAW_diagnostic_close',
-      '1.0.13': 'octo_with_wrist_RAW_diagnostic_wide',
-      '1.0.14': 'octo_with_wrist_RAW_diagnostic_wide',
-      '1.0.15': 'grasp_blue_300',
+        '1.0.0': 'Initial release.',
+        '1.0.1': 'hover_simple_ds',
+        '1.0.2': 'hover_simple_ds_extend',
+        '1.0.3': 'hover_blue_logi',
+        '1.0.4': 'hover_blue_logi2',
+        '1.0.5': 'hover_blue_logi3',
+        '1.0.6': 'first_grasp',
+        '1.0.7': 'wrist_cam_test',
+        '1.0.8': 'octo_with_wrist',
+        '1.0.9': 'octo_with_wrist_fixed',
+        '1.0.10': 'octo_with_wrist_fixed',
+        '1.0.11': 'octo_with_wrist_RAW',
+        '1.0.12': 'octo_with_wrist_RAW_diagnostic_close',
+        '1.0.13': 'octo_with_wrist_RAW_diagnostic_wide',
+        '1.0.14': 'octo_with_wrist_RAW_diagnostic_wide',
+        '1.0.15': 'grasp_blue_300',
+        '1.0.16': 'grasp_blue300red100_blue_from_close_100_pick_up_blue200_recover_50',
     }
     # make sure the name matches the folder
-    
+
     RELEASE_NAME = RELEASE_NOTES[str(VERSION)]
     dataset_path = f'../../../datasets/raw_data/{RELEASE_NAME}'
 
@@ -62,7 +75,7 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
                             shape=(11,),
                             dtype=np.float32,
                             doc='Robot state, consists of [7x robot joint angles, '
-                                '2x gripper position].', 
+                                '2x gripper position].',
                                 # 7x joint angles (q), (3 + 4)x FK (q), dq (7 joint angle velocities), 1x gripper state
                                 # optional: delta fk (q) (avoid for now)
                         )
@@ -72,7 +85,7 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
                         dtype=np.float32,
                         doc='Robot action, consists of [7x joint velocities, '
                             '2x gripper velocities, 1x terminate episode].',
-                            # 3 deltas xyz 3 deltas roll pitch yaw 1 delta grip 
+                            # 3 deltas xyz 3 deltas roll pitch yaw 1 delta grip
                     ),
                     'discount': tfds.features.Scalar(
                         dtype=np.float32,
@@ -113,14 +126,14 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
 
     def _split_generators(self, dl_manager: tfds.download.DownloadManager):
         """Define data splits."""
-        
+
         return {
             # change the path to match the datasets subfolder
-            
+
             'train': self._generate_examples(path=f'../../../datasets/raw_data/{self.RELEASE_NAME}/episode_*.pkl'),
             # 'val': self._generate_examples(path=f'../../../datasets/{self.RELEASE_NAME}val/episode_*.pkl'),
         }
-        
+
     def crop_and_resize(self, image, dimension):
         height, width = image.shape[:2]
         min_dim = min(height, width)
@@ -132,71 +145,74 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
         resized_image = cv2.resize(cropped_image, (dimension, dimension))
 
         return resized_image
-        
+
     def get_mp4_frames(self, mp4_path):
-            cap = cv2.VideoCapture(mp4_path)
-            frames = []
-            while cap.isOpened():
-                ret, frame = cap.read()
-                if not ret:
-                    break
-                # frame = self.crop_and_resize(frame, 256) # TODO different size, augmentation, etc
-                frames.append(frame)
-                
-            cap.release()
-            return frames
+        cap = cv2.VideoCapture(mp4_path)
+        frames = []
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+            frames.append(frame)
+
+        cap.release()
+        return frames
 
     def _generate_examples(self, path) -> Iterator[Tuple[str, Any]]:
         """Generator of examples for each split."""
-        
+
+        print(f"Process ID: {os.getpid()}")
+
         def _parse_example(episode_path):
+
+            # print(f"Processing episode: {episode_path}")
 
             # add deltas (from franka_pose --> split in xyz and rot_matrix)
 
             # data = np.load(episode_path, allow_pickle=True)  # list of dicts in our case
-            data: EpisodeLogState = pickle.load(open(episode_path, 'rb'))
+            data: 'EpisodeLogState' = pickle.load(open(episode_path, 'rb'))
             data.align_logs_with_resampling()
             data.remove_near_zero_velocity_frames()
             data = data.get_episode_data()
-            
+
             primary_mp4_path = episode_path.replace('.pkl', '.mp4').replace('episode_', 'primary_episode_')
             wrist_mp4_path = episode_path.replace('.pkl', '.mp4').replace('episode_', 'wrist_episode_')
-            
+
             # load mp4 and unpack frames into a np array using cv2 tin order to save up on space
-            
+
             primary_frames = self.get_mp4_frames(primary_mp4_path)
             wrist_frames = self.get_mp4_frames(wrist_mp4_path)
-            
+
             # assemble episode --> here we're assuming demos so we set reward to 1 at the end
-            
+
             # TODO: check if what follows is correct
             episode = []
             for i in range(len(data)):
-                
+
                 # assuming the data is at 15Hz, resample to 5Hz
                 # if i % 3 != 0:
                 #     continue
-                
+
                 step = data[i]
 
                 pose = step['franka_pose']
                 pos = pose[:3, 3]
                 grip = step['gripper_status']
-                
+
                 # compute Kona language embedding
                 # language_embedding = self._embed([step['task_description']])[0].numpy()
 
                 gripper_state = np.expand_dims(grip, axis=0)
                 state = np.concatenate([step['franka_q'], pos, gripper_state]).astype(np.float32)
-                
+
                 # terminate_action = np.array([True if i == (len(data) - 1) else False], dtype=np.float32)
                 action = step['action'].astype(np.float32)
-                
+
                 episode.append({
                     'observation': {
                         'primary_image': primary_frames[i],
                         'wrist_image': wrist_frames[i],
-                        'state': state, 
+                        'state': state,
                     },
                     'action': action,
                     'discount': 1.0,
@@ -216,8 +232,10 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
                 }
             }
 
+            # print(f"Processed episode: {episode_path}")
             # if you want to skip an example for whatever reason, simply return None
             return episode_path, sample
+            
 
         # create list of all examples
         episode_paths = glob.glob(path)
@@ -229,7 +247,6 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
         # for large datasets use beam to parallelize data parsing (this will have initialization overhead)
         # beam = tfds.core.lazy_imports.apache_beam
         # return (
-        #         beam.Create(episode_paths)
-        #         | beam.Map(_parse_example)
+        #     beam.Create(episode_paths)
+        #     | beam.Map(_parse_example)
         # )
-

@@ -42,6 +42,8 @@ def merge_datasets(dataset_names: list, new_dataset_name: str, raw_data_folder="
     
    
 if __name__ == "__main__":
-    merge_datasets(["octo_with_wrist_RAW_diagnostic_close", 
-                    "octo_with_wrist_RAW_diagnostic_wide"], 
-                   new_dataset_name="grasp_blue_300_red_100")
+    merge_datasets(["grasp_blue_300", 
+                    "grasp_red_100",
+                    "grasp_blue_from_close_100",
+                    "pick_up_blue_200"], 
+                   new_dataset_name="grasp_blue300red100_blue_from_close_100_pick_up_blue200")
