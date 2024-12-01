@@ -42,8 +42,5 @@ def merge_datasets(dataset_names: list, new_dataset_name: str, raw_data_folder="
     
    
 if __name__ == "__main__":
-    merge_datasets(["grasp_blue_300", 
-                    "grasp_red_100",
-                    "grasp_blue_from_close_100",
-                    "pick_up_blue_200"], 
-                   new_dataset_name="grasp_blue300red100_blue_from_close_100_pick_up_blue200")
+    merge_datasets(["pick_up_blue_200", "stack_blue_red_100", "stack_red_blue_100"], 
+                   new_dataset_name="pickup_blue200_stack_bluered100_redblue100")

@@ -1,6 +1,8 @@
 import numpy as np
 from dataclasses import dataclass
 import pickle
+import cv2
+import matplotlib.pyplot as plt
 
 
 @dataclass
@@ -14,6 +16,11 @@ class EpisodeLogState:
     gripper_t: np.ndarray
     wrist_frame_t: np.ndarray
     camera_frame_t: np.ndarray
+
+    franka_resampled_indices: np.ndarray = None
+    gripper_resampled_indices: np.ndarray = None
+    primarycam_resampled_indices: np.ndarray = None
+    wristcam_resampled_indices: np.ndarray = None
 
     task_description: str = ""
 
@@ -39,26 +46,37 @@ class EpisodeLogState:
                 len(self.gripper_t) == len(self.gripper_status) == len(self.camera_frame_t) ==
                 len(self.action) == len(self.wrist_frame_t))
 
+    @staticmethod
+    def find_nearest_timestamps(base_timestamps, query_timestamps):
+        """
+        Note: this may find an entry that violates causality, but that is still nearest in time.
+        Since we wish to align cameras, and cameras/actions, this should be ok, since a few tens of ms of difference should
+        look reasonably similar in both image and action space.
+        """
+        base = np.array(base_timestamps)
+        query = np.array(query_timestamps)
+
+        # Find nearest indices using array operations
+        nearest_indices = []
+        for q in query:
+            # Calculate absolute differences
+            differences = np.abs(base - q)
+            # Find index of minimum difference
+            nearest_idx = np.argmin(differences)
+            nearest_indices.append(nearest_idx)
+
+        return nearest_indices
+
     def align_logs_with_resampling(self):
         franka_t = np.squeeze((self.franka_t - self.franka_t[0]) / 1e3)
         gripper_t = (self.gripper_t - self.gripper_t[0]) / 1e9
         wrist_frame_t = (self.wrist_frame_t - self.gripper_t[0]) / 1e9
         camera_frame_t = (self.camera_frame_t - self.gripper_t[0]) / 1e9
 
-        franka_resampled_indices = np.searchsorted(franka_t, camera_frame_t)
-        gripper_resampled_indices = np.searchsorted(gripper_t, camera_frame_t)
-        wrist_resampled_indices = np.searchsorted(wrist_frame_t, camera_frame_t)
-
-        if franka_resampled_indices[-1] == len(franka_t):
-            franka_resampled_indices[-1] = len(franka_t) - 1
-        if gripper_resampled_indices[-1] == len(gripper_t):
-            gripper_resampled_indices[-1] = len(gripper_t) - 1
-        if gripper_resampled_indices[-2] == len(self.gripper_status):
-            gripper_resampled_indices[-2] = len(self.gripper_status) - 1
-        if wrist_resampled_indices[-1] == len(wrist_frame_t):
-            wrist_resampled_indices[-1] = len(wrist_frame_t) - 1
-        if wrist_resampled_indices[-2] == len(wrist_frame_t):
-            wrist_resampled_indices[-2] = len(wrist_frame_t) - 1
+        franka_resampled_indices = self.find_nearest_timestamps(franka_t, gripper_t)
+        gripper_resampled_indices = self.find_nearest_timestamps(gripper_t, gripper_t)
+        primarycam_resampled_indices = self.find_nearest_timestamps(camera_frame_t, gripper_t)
+        wristcam_resampled_indices = self.find_nearest_timestamps(wrist_frame_t, gripper_t)
 
         self.franka_q = self.franka_q[franka_resampled_indices]
         self.franka_dq = self.franka_dq[franka_resampled_indices]
@@ -67,11 +85,18 @@ class EpisodeLogState:
         self.action = self.action[gripper_resampled_indices, ::]
         self.franka_t = franka_t[franka_resampled_indices]
         self.gripper_t = gripper_t[gripper_resampled_indices]
-        self.wrist_frame_t = wrist_frame_t[wrist_resampled_indices]
-        self.camera_frame_t = camera_frame_t
+        self.wrist_frame_t = wrist_frame_t[wristcam_resampled_indices]
+        self.camera_frame_t = camera_frame_t[primarycam_resampled_indices]
 
         self.assure_equal_lengths()
         self.aligned = True
+
+        self.franka_resampled_indices = franka_resampled_indices
+        self.gripper_resampled_indices = gripper_resampled_indices
+        self.primarycam_resampled_indices = primarycam_resampled_indices
+        self.wristcam_resampled_indices = wristcam_resampled_indices
+
+        return franka_resampled_indices, gripper_resampled_indices, primarycam_resampled_indices, wristcam_resampled_indices
 
     def remove_near_zero_velocity_frames(self):
         self.assure_equal_lengths()
@@ -103,7 +128,7 @@ class EpisodeLogState:
 
     def get_episode_data(self):
         self.assure_equal_lengths()
-        assert (self.aligned and self.filtered_nearzero_velocity and self.task_description)
+        assert (self.aligned and self.task_description)
 
         data = []
         for i in range(len(self.franka_t)-1):
@@ -113,3 +138,50 @@ class EpisodeLogState:
                          'task_description': self.task_description})
 
         return data
+
+
+if __name__ == '__main__':
+    # can use this to preview alignment of camera frames with gripper status
+    # for example to check if the cameras align correctly with eachother and the gripper open/close
+    episode_name = 'datasets/raw_data/stack_red_blue_100/episode_1.npz'
+    primary_camera = 'datasets/raw_data/stack_red_blue_100/primary_episode_1.mp4'
+    wrist_camera = 'datasets/raw_data/stack_red_blue_100/wrist_episode_1.mp4'
+    episode = EpisodeLogState.from_numpy(episode_name)
+    franka_resampled, gripper_resampled, camera_resampled, wrist_resampled = episode.align_logs_with_resampling()
+
+    # load the video files and make them lists
+    cap = cv2.VideoCapture(primary_camera)
+    primary_frames = []
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        primary_frames.append(frame)
+
+    cap = cv2.VideoCapture(wrist_camera)
+    wrist_frames = []
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        wrist_frames.append(frame)
+
+    # show the frames from the camera where episode.gripper_status is 1
+    # adjusted for resampled indexes
+    for i in range(len(episode.gripper_status)):
+        if episode.gripper_status[i] == 1:
+            primary_frame = camera_resampled[i]
+            wrist_frame = wrist_resampled[i]
+
+            print(primary_frame, wrist_frame)
+
+            # show both images with plt as subplots
+            fig, ax = plt.subplots(1, 2)
+            fig.set_size_inches(10, 10)
+            ax[0].set_xticks([])
+            ax[0].set_yticks([])
+            ax[1].set_xticks([])
+            ax[1].set_yticks([])
+            ax[0].imshow(primary_frames[primary_frame])
+            ax[1].imshow(wrist_frames[wrist_frame])
+            plt.show()

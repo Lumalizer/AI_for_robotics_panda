@@ -3,7 +3,7 @@ import os
 import cv2
 import numpy as np
 import panda_py
-from in_out.episode_logstate import EpisodeLogState
+from data.episode_logstate import EpisodeLogState
 from in_out.camera.BaseCamera import BaseCamera
 from in_out.camera.LogitechCamera import LogitechCamera
 from in_out.camera.RealSenseCamera import RealSenseCamera

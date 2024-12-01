@@ -17,13 +17,14 @@ import sys
 # sys.path.append(p)
 # sys.path.append(p2)
 
-from in_out.episode_logstate import EpisodeLogState  # comment out to allow parallel processing
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+from data.episode_logstate import EpisodeLogState
 
 
 class AirNet(tfds.core.GeneratorBasedBuilder):
     """DatasetBuilder for example dataset."""
 
-    VERSION = tfds.core.Version('1.0.16')
+    VERSION = tfds.core.Version('1.0.17')
     RELEASE_NOTES = {
         '1.0.0': 'Initial release.',
         '1.0.1': 'hover_simple_ds',
@@ -42,6 +43,7 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
         '1.0.14': 'octo_with_wrist_RAW_diagnostic_wide',
         '1.0.15': 'grasp_blue_300',
         '1.0.16': 'grasp_blue300red100_blue_from_close_100_pick_up_blue200_recover_50',
+        '1.0.17': 'pickup_blue200_stack_bluered100_redblue100',
     }
     # make sure the name matches the folder
 
@@ -146,7 +148,7 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
 
         return resized_image
 
-    def get_mp4_frames(self, mp4_path):
+    def get_mp4_frames(self, mp4_path, resampled_indices):
         cap = cv2.VideoCapture(mp4_path)
         frames = []
         while cap.isOpened():
@@ -156,7 +158,9 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
             frames.append(frame)
 
         cap.release()
-        return frames
+
+        frames = np.array(frames)
+        return frames[resampled_indices]
 
     def _generate_examples(self, path) -> Iterator[Tuple[str, Any]]:
         """Generator of examples for each split."""
@@ -169,19 +173,18 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
 
             # add deltas (from franka_pose --> split in xyz and rot_matrix)
 
-            # data = np.load(episode_path, allow_pickle=True)  # list of dicts in our case
-            data: 'EpisodeLogState' = pickle.load(open(episode_path, 'rb'))
-            data.align_logs_with_resampling()
-            data.remove_near_zero_velocity_frames()
-            data = data.get_episode_data()
+            ep = EpisodeLogState.from_numpy(episode_path)
+            ep.align_logs_with_resampling()
+            # data.remove_near_zero_velocity_frames()
+            data = ep.get_episode_data()
 
             primary_mp4_path = episode_path.replace('.npz', '.mp4').replace('episode_', 'primary_episode_')
             wrist_mp4_path = episode_path.replace('.npz', '.mp4').replace('episode_', 'wrist_episode_')
 
-            # load mp4 and unpack frames into a np array using cv2 tin order to save up on space
-
-            primary_frames = self.get_mp4_frames(primary_mp4_path)
-            wrist_frames = self.get_mp4_frames(wrist_mp4_path)
+            primary_frames = self.get_mp4_frames(
+                primary_mp4_path, resampled_indices=ep.primarycam_resampled_indices)
+            wrist_frames = self.get_mp4_frames(
+                wrist_mp4_path, resampled_indices=ep.wristcam_resampled_indices)
 
             # assemble episode --> here we're assuming demos so we set reward to 1 at the end
 
@@ -235,7 +238,6 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
             # print(f"Processed episode: {episode_path}")
             # if you want to skip an example for whatever reason, simply return None
             return episode_path, sample
-            
 
         # create list of all examples
         episode_paths = glob.glob(path)
