@@ -130,8 +130,8 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
         return {
             # change the path to match the datasets subfolder
 
-            'train': self._generate_examples(path=f'../../../datasets/raw_data/{self.RELEASE_NAME}/episode_*.pkl'),
-            # 'val': self._generate_examples(path=f'../../../datasets/{self.RELEASE_NAME}val/episode_*.pkl'),
+            'train': self._generate_examples(path=f'../../../datasets/raw_data/{self.RELEASE_NAME}/episode_*.npz'),
+            # 'val': self._generate_examples(path=f'../../../datasets/{self.RELEASE_NAME}val/episode_*.npz'),
         }
 
     def crop_and_resize(self, image, dimension):
@@ -175,8 +175,8 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
             data.remove_near_zero_velocity_frames()
             data = data.get_episode_data()
 
-            primary_mp4_path = episode_path.replace('.pkl', '.mp4').replace('episode_', 'primary_episode_')
-            wrist_mp4_path = episode_path.replace('.pkl', '.mp4').replace('episode_', 'wrist_episode_')
+            primary_mp4_path = episode_path.replace('.npz', '.mp4').replace('episode_', 'primary_episode_')
+            wrist_mp4_path = episode_path.replace('.npz', '.mp4').replace('episode_', 'wrist_episode_')
 
             # load mp4 and unpack frames into a np array using cv2 tin order to save up on space
 

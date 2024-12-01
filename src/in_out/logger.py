@@ -107,8 +107,8 @@ class Logger:
             # fill in the gaps in the episode numbers if needed
             ep_num = self.get_ep_num_to_log(dataset_path)
             
-            episode_path = os.path.join(dataset_path, f'episode_{ep_num}.pkl')
-            logs.save_raw_pickle(episode_path)
+            episode_path = os.path.join(dataset_path, f'episode_{ep_num}.npz')
+            logs.to_numpy(episode_path)
             
             for camera in self.cameras:
                 self.write_mp4(camera, dataset_path, ep_num)
@@ -129,7 +129,7 @@ class Logger:
 
     def get_ep_num_to_log(self, dataset_path):
         files = os.listdir(dataset_path)
-        existing_ep_nums = [int(f.split("episode_")[1].replace(".pkl", ""))for f in files if f.endswith('.pkl')]
+        existing_ep_nums = [int(f.split("episode_")[1].replace(".npz", ""))for f in files if f.endswith('.npz')]
             
         if not existing_ep_nums:
             return 1

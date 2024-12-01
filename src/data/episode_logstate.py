@@ -1,6 +1,6 @@
 import numpy as np
-import pickle
 from dataclasses import dataclass
+import pickle
 
 
 @dataclass
@@ -20,19 +20,24 @@ class EpisodeLogState:
     aligned: bool = False
     filtered_nearzero_velocity: bool = False
 
+    def to_numpy(self, path):
+        np.savez(path, **self.__dict__)
+
     @classmethod
-    def from_pickle(cls, path):
+    def from_numpy(cls, path):
+        data = np.load(path, allow_pickle=True)
+        return cls(**{key: data[key].item() if (key == 'task_description')
+                      else data[key] for key in data})
+
+    @classmethod
+    def from_pickle(cls, path) -> 'EpisodeLogState':
         with open(path, 'rb') as f:
-            return pickle.load(f)
+            return EpisodeLogState(**pickle.load(f).__dict__)
 
     def assure_equal_lengths(self):
-        assert(len(self.franka_t) == len(self.franka_q) == len(self.franka_dq) == len(self.franka_pose) ==
-               len(self.gripper_t) == len(self.gripper_status) == len(self.camera_frame_t) ==
-               len(self.action) == len(self.wrist_frame_t))
-
-    def save_raw_pickle(self, path):
-        with open(path, 'wb') as f:
-            pickle.dump(self, f)
+        assert (len(self.franka_t) == len(self.franka_q) == len(self.franka_dq) == len(self.franka_pose) ==
+                len(self.gripper_t) == len(self.gripper_status) == len(self.camera_frame_t) ==
+                len(self.action) == len(self.wrist_frame_t))
 
     def align_logs_with_resampling(self):
         franka_t = np.squeeze((self.franka_t - self.franka_t[0]) / 1e3)
@@ -80,7 +85,7 @@ class EpisodeLogState:
             if gripper_status_diff[i] == 1:
                 gripper_status_diff_extended[i:i+3] = 1
 
-        has_nearzero_velocity = lambda x: np.sum(np.abs(self.franka_dq[x])) + gripper_status_diff_extended[x] < 0.02
+        def has_nearzero_velocity(x): return np.sum(np.abs(self.franka_dq[x])) + gripper_status_diff_extended[x] < 0.02
         indexes_to_keep = [i for i in range(len(self.franka_dq)) if not has_nearzero_velocity(i)]
 
         self.franka_t = self.franka_t[indexes_to_keep]
@@ -98,13 +103,13 @@ class EpisodeLogState:
 
     def get_episode_data(self):
         self.assure_equal_lengths()
-        assert(self.aligned and self.filtered_nearzero_velocity and self.task_description)
+        assert (self.aligned and self.filtered_nearzero_velocity and self.task_description)
 
         data = []
         for i in range(len(self.franka_t)-1):
-            data.append({'franka_t':self.franka_t[i], 'franka_q':self.franka_q[i], 'franka_dq':self.franka_dq[i],
-                         'franka_pose':self.franka_pose[i], 'gripper_t':self.gripper_t[i], 'gripper_status':self.gripper_status[i],
-                         'action':self.action[i], 'camera_frame_t':self.camera_frame_t[i], 'wrist_frame_t':self.wrist_frame_t[i],
-                         'task_description':self.task_description})
+            data.append({'franka_t': self.franka_t[i], 'franka_q': self.franka_q[i], 'franka_dq': self.franka_dq[i],
+                         'franka_pose': self.franka_pose[i], 'gripper_t': self.gripper_t[i], 'gripper_status': self.gripper_status[i],
+                         'action': self.action[i], 'camera_frame_t': self.camera_frame_t[i], 'wrist_frame_t': self.wrist_frame_t[i],
+                         'task_description': self.task_description})
 
         return data
