@@ -30,7 +30,9 @@ def update_plot_and_description(selected_dataset, selected_episode):
     window['task_description'].update(task_description)
 
     excluded_keys = ["task_description", "franka_pose", "franka_t", "gripper_t",
-                     "camera_frame_t", "wrist_frame_t", "aligned", "filtered_nearzero_velocity"]
+                     "camera_frame_t", "wrist_frame_t", "aligned", "filtered_nearzero_velocity",
+                     "franka_resampled_indices", "gripper_resampled_indices", "primarycam_resampled_indices",
+                     "wristcam_resampled_indices"]
 
     plottable_keys = [key for key in keys if key not in excluded_keys]
 

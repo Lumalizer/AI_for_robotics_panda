@@ -227,6 +227,6 @@ class FrankaController:
     
         self.logger.exit_logging(save=False)
         
-    def continually_run_from_server(self, instruction: str = "grasp the blue block"):      
+    def continually_run_from_server(self, instruction: str = "pick up the blue block"):      
         while True:
             self.run_from_server(instruction=instruction)

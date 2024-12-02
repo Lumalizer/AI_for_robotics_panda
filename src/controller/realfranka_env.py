@@ -71,10 +71,10 @@ def franka_controller_process(franka_ip, action_space, conn, parent_conn_gripper
                         delta_rot = new_action[3:6] *multiplier # delta_yaw, delta_pitch, delta_roll
                         gripper_action = new_action[6]
                         
-                        gripper_action = int(gripper_action > 0)
+                        gripper_action = int(gripper_action > 0.3)
                         
-                        if gripper_action > 0:
-                            print(gripper_action)
+                        # if gripper_action > 0:
+                        #     print(gripper_action)
 
                         pose = fr3.get_pose().copy()
                         x = pose[0:3, 3]
