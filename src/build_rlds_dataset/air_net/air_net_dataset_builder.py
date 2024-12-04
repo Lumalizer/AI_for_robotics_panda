@@ -9,22 +9,23 @@ import pickle
 import os
 import sys
 
+p = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../src/'))
+sys.path.append(p)
+from data.episode_logstate import EpisodeLogState
+
 # for multiprocessing
 # we need to add the module folder to python path for multiprocessing
 # $env:PYTHONPATH = "$env:PYTHONPATH;D:\Dev\AI_for_robotics_panda\src\build_rlds_dataset"
-# p = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../src/'))
 # p2 = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../src/build_rlds_dataset'))
-# sys.path.append(p)
 # sys.path.append(p2)
+# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-from data.episode_logstate import EpisodeLogState
 
 
 class AirNet(tfds.core.GeneratorBasedBuilder):
     """DatasetBuilder for example dataset."""
 
-    VERSION = tfds.core.Version('1.0.17')
+    VERSION = tfds.core.Version('1.0.19')
     RELEASE_NOTES = {
         '1.0.0': 'Initial release.',
         '1.0.1': 'hover_simple_ds',
@@ -44,6 +45,8 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
         '1.0.15': 'grasp_blue_300',
         '1.0.16': 'grasp_blue300red100_blue_from_close_100_pick_up_blue200_recover_50',
         '1.0.17': 'pickup_blue200_stack_bluered100_redblue100',
+        '1.0.18': 'pick_up_blue_200_30hz',
+        '1.0.19': 'pick_up_blue_200_15hz',
     }
     # make sure the name matches the folder
 
