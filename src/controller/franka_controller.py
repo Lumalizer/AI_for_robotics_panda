@@ -38,7 +38,7 @@ class FrankaController:
         if mode == 'openvla':
             multiplier = 2
         elif mode == 'octo':
-            multiplier = 0.015
+            multiplier = 1
         elif mode == 'demonstration':
             multiplier = 1
         
@@ -219,6 +219,7 @@ class FrankaController:
                 data["wrist_image"] = self.to_base64(img2)
                 
             try:
+                data["unnorm_key"] = "action"
                 action = requests.post(ip, json=data).json()
                 self.env.step(action)
             except Exception as e:

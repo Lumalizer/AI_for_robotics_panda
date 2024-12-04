@@ -202,6 +202,7 @@ class RealFrankaEnv(gym.Env):
         self.parent_conn.send(('close_gripper',))
 
     def reset(self, seed=None, **kwargs):
+        self.open_gripper()
         self.parent_conn.send(('move_to_start',))
         time.sleep(2)
 
