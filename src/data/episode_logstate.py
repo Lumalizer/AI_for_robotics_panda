@@ -67,16 +67,18 @@ class EpisodeLogState:
 
         return nearest_indices
 
-    def align_logs_with_resampling(self):
+    def align_logs_with_resampling(self, resample_hertz=15):
         franka_t = np.squeeze((self.franka_t - self.franka_t[0]) / 1e3)
         gripper_t = (self.gripper_t - self.gripper_t[0]) / 1e9
         wrist_frame_t = (self.wrist_frame_t - self.gripper_t[0]) / 1e9
         camera_frame_t = (self.camera_frame_t - self.gripper_t[0]) / 1e9
+        
+        resampled_timings = np.arange(camera_frame_t[0], min(gripper_t[-1], camera_frame_t[-1], wrist_frame_t[-1]), 1/resample_hertz)
 
-        franka_resampled_indices = self.find_nearest_timestamps(franka_t, gripper_t)
-        gripper_resampled_indices = self.find_nearest_timestamps(gripper_t, gripper_t)
-        primarycam_resampled_indices = self.find_nearest_timestamps(camera_frame_t, gripper_t)
-        wristcam_resampled_indices = self.find_nearest_timestamps(wrist_frame_t, gripper_t)
+        franka_resampled_indices = self.find_nearest_timestamps(franka_t, resampled_timings)
+        gripper_resampled_indices = self.find_nearest_timestamps(gripper_t, resampled_timings)
+        primarycam_resampled_indices = self.find_nearest_timestamps(camera_frame_t, resampled_timings)
+        wristcam_resampled_indices = self.find_nearest_timestamps(wrist_frame_t, resampled_timings)
 
         self.franka_q = self.franka_q[franka_resampled_indices]
         self.franka_dq = self.franka_dq[franka_resampled_indices]

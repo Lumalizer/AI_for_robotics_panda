@@ -86,7 +86,7 @@ class Logger:
             logs = self.get_raw_logstate()
             
             
-            task_desc = input(f"""Enter task description such as 'pick up the red cube'
+            task_desc = input(f"""Enter task description such as 'pick up the red block'
                                 or press ENTER to re-use the previous task description: (\033[92m{self.previous_task_desc}\033[0m)
                                 or type 'skip' to skip saving this trajectory: """).strip()
             if task_desc == 'skip':

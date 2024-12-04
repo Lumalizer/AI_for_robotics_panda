@@ -38,7 +38,7 @@ class FrankaController:
         if mode == 'openvla':
             multiplier = 2
         elif mode == 'octo':
-            multiplier = 0.02
+            multiplier = 0.015
         elif mode == 'demonstration':
             multiplier = 1
         
