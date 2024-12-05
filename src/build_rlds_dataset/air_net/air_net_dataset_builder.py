@@ -25,7 +25,7 @@ from data.episode_logstate import EpisodeLogState
 class AirNet(tfds.core.GeneratorBasedBuilder):
     """DatasetBuilder for example dataset."""
 
-    VERSION = tfds.core.Version('1.0.19')
+    VERSION = tfds.core.Version('1.0.21')
     RELEASE_NOTES = {
         '1.0.0': 'Initial release.',
         '1.0.1': 'hover_simple_ds',
@@ -47,6 +47,8 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
         '1.0.17': 'pickup_blue200_stack_bluered100_redblue100',
         '1.0.18': 'pick_up_blue_200_30hz',
         '1.0.19': 'pick_up_blue_200_15hz',
+        '1.0.20': 'pick_up_blue_200',
+        '1.0.21': '14datasets_05_12_2024_recover_stack_knockover_pack_pickup_place_unpack',
     }
     # make sure the name matches the folder
 
@@ -139,18 +141,6 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
             # 'val': self._generate_examples(path=f'../../../datasets/{self.RELEASE_NAME}val/episode_*.npz'),
         }
 
-    def crop_and_resize(self, image, dimension):
-        height, width = image.shape[:2]
-        min_dim = min(height, width)
-
-        start_x = (width - min_dim) // 2
-        start_y = (height - min_dim) // 2
-
-        cropped_image = image[start_y:start_y + min_dim, start_x:start_x + min_dim]
-        resized_image = cv2.resize(cropped_image, (dimension, dimension))
-
-        return resized_image
-
     def get_mp4_frames(self, mp4_path, resampled_indices):
         cap = cv2.VideoCapture(mp4_path)
         frames = []
@@ -159,13 +149,12 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
             if not ret:
                 break
             # make sure to load as RGB, so we do not train on BGR images
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frames.append(frame)
 
         cap.release()
 
-        frames = np.array(frames)
-        return frames[resampled_indices]
+        frames = [cv2.cvtColor(frames[i], cv2.COLOR_BGR2RGB) for i in resampled_indices]
+        return np.array(frames)
 
     def _generate_examples(self, path) -> Iterator[Tuple[str, Any]]:
         """Generator of examples for each split."""
@@ -178,10 +167,14 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
 
             # add deltas (from franka_pose --> split in xyz and rot_matrix)
 
-            ep = EpisodeLogState.from_numpy(episode_path)
-            ep.align_logs_with_resampling()
-            # data.remove_near_zero_velocity_frames()
-            data = ep.get_episode_data()
+            try:
+                ep = EpisodeLogState.from_numpy(episode_path)
+                ep.align_logs_with_resampling()
+                # data.remove_near_zero_velocity_frames()
+                data = ep.get_episode_data()
+            except Exception as e:
+                print(f"Error in processing episode {path}: {e}")
+                return None
 
             primary_mp4_path = episode_path.replace('.npz', '.mp4').replace('episode_', 'primary_episode_')
             wrist_mp4_path = episode_path.replace('.npz', '.mp4').replace('episode_', 'wrist_episode_')
