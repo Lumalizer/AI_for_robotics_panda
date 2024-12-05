@@ -60,10 +60,22 @@ class Logger:
         for camera in self.cameras:
             camera.clear_logs()
         
-    def log(self, action):
+    def log(self, action, inference=False):
         self._logs['action'].append(action)
-        self._logs['gripper'].append(self.fc.is_gripping)
         self._logs['time'].append(time.time_ns())
+
+        if not inference:
+            self._logs['gripper'].append(self.fc.is_gripping)
+        else:
+            grip = int(action[-1] >= 1)
+            release = int(action[-1] <= 0)
+
+            if grip:
+                self._logs['gripper'].append(1)
+            elif release:
+                self._logs['gripper'].append(0)
+            else:
+                self._logs['gripper'].append(self._logs['gripper'][-1])
         
     def enter_logging(self):
         self.fc.is_recording.set()
@@ -78,15 +90,15 @@ class Logger:
             if not hasattr(camera, 'cam_thread'):
                 camera.start_camera_thread()
         
-    def exit_logging(self, save=True):
+    def exit_logging(self, save=True, inference=False, task_desc=None):
         self.fc.is_recording.clear()
         self.fc.env.disable_logging()
         
         if save:
             logs = self.get_raw_logstate()
             
-            
-            task_desc = input(f"""Enter task description such as 'pick up the red block'
+            if not task_desc:
+                task_desc = input(f"""Enter task description such as 'pick up the red block'
                                 or press ENTER to re-use the previous task description: (\033[92m{self.previous_task_desc}\033[0m)
                                 or type 'skip' to skip saving this trajectory: """).strip()
             if task_desc == 'skip':
@@ -101,7 +113,12 @@ class Logger:
             self.previous_task_desc = task_desc
             logs.task_description = task_desc
             
-            dataset_path = os.path.join("datasets", "raw_data", self.fc.dataset_name)
+            if inference:
+                raw_or_inference_subfolder = "inference_data"
+            else:
+                raw_or_inference_subfolder = "raw_data"
+
+            dataset_path = os.path.join("datasets", raw_or_inference_subfolder, self.fc.dataset_name)
             os.makedirs(dataset_path, exist_ok=True)
             
             # fill in the gaps in the episode numbers if needed

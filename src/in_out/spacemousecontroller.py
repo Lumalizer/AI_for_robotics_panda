@@ -39,8 +39,7 @@ def do_nothing():
     pass
 
 class SpaceMouseController:
-    def __init__(self, conversion_factor=0.003, angle_conversion_factor=0.4, 
-                 mouse_axes_conversion=SpaceMouseState(1, 1, 1, 1, 1, 1), 
+    def __init__(self, xyz_multiplier=0.003, angle_multiplier=0.4, 
                  button_left_callback=do_nothing, button_right_callback=do_nothing):
         
         def button_callback(state, buttons):
@@ -51,17 +50,14 @@ class SpaceMouseController:
         
         success = pyspacemouse.open(button_callback=button_callback)
         if not success:
-            exit()
+            return None
             
         self.latest_state = pyspacemouse.read()
         self.update_latest_state_thread = threading.Thread(target=self.update_latest_state_thread_fn, daemon=True)
         self.update_latest_state_thread.start()
 
-        self.conversion_factor = conversion_factor
-        self.angle_conversion_factor = angle_conversion_factor
-        self.mouse_axes_conversion = mouse_axes_conversion
-        
-        
+        self.conversion_factor = xyz_multiplier
+        self.angle_conversion_factor = angle_multiplier
         
     def update_latest_state_thread_fn(self):
         while True:
@@ -98,7 +94,7 @@ class SpaceMouseController:
         
         state = SpaceMouseState(x, y, z, roll, pitch, yaw)
 
-        return state*self.mouse_axes_conversion
+        return state
 
     def close(self):
         pyspacemouse.close()

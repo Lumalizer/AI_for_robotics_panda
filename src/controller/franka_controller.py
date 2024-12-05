@@ -19,32 +19,22 @@ class FrankaController:
                  env:RealFrankaEnv=None,
                  logger:Logger=None, 
                  dataset_name="no_name",
-                 mode: str="demonstration",
                  
-                 conversion_factor=0.03, 
-                 angle_conversion_factor=15,
-                 mouse_axes_conversion=SpaceMouseState(1, 1, 1, 1, 1, 1),
+                 xyz_multiplier=0.03, 
+                 angle_multiplier=15,
                  
                  step_duration_s=1/30,
-                 receding_horizon=None,
+                 execution_horizon=1,
                  
+                 action_multiplier: int=1,
                  fps=30,
                  
                  randomize_starting_position=False):
         
-        if mode not in ['demonstration', 'openvla', 'octo']:
-            raise ValueError(f"Invalid mode: {mode}. Must be one of ['demonstration', 'openvla', 'octo']")
-    
-        if mode == 'openvla':
-            multiplier = 2
-        elif mode == 'octo':
-            multiplier = 1
-        elif mode == 'demonstration':
-            multiplier = 1
+        self.env = env if env else RealFrankaEnv(step_duration_s=step_duration_s, multiplier=action_multiplier, action_space="cartesian")
         
-        self.env = env if env else RealFrankaEnv(step_duration_s=step_duration_s, multiplier=multiplier, action_space="cartesian")
-        if receding_horizon:
-            self.env = RHCWrapper(self.env, receding_horizon)
+        if execution_horizon > 1:
+            self.env = RHCWrapper(self.env, execution_horizon)
 
         self.is_gripping = False
         self.is_pre_controlling = threading.Event() # allows moving the arm before recording logs
@@ -54,20 +44,17 @@ class FrankaController:
         self.dataset_name = dataset_name
         
         self.step_duration_s = step_duration_s
-        
         self.fps = fps
-        
         self.randomize_starting_position = randomize_starting_position
 
-        # space mouse
-        try:
-            self.spacemouse_controller = SpaceMouseController(
-                conversion_factor, angle_conversion_factor, mouse_axes_conversion, 
-                button_left_callback=self.toggle_recording, button_right_callback=self.toggle_gripper)
-        except Exception as e:
-            self.spacemouse_controller = None
-            print(f"SpaceMouse not connected. {e}")
+
+        self.spacemouse_controller = SpaceMouseController(
+            xyz_multiplier, angle_multiplier, 
+            button_left_callback=self.toggle_recording, 
+            button_right_callback=self.toggle_gripper)
         
+        if not self.spacemouse_controller:
+            print(f"SpaceMouse not connected.")
 
         self.env.reset()
 
@@ -88,29 +75,23 @@ class FrankaController:
         else:
             self.is_recording.set()
             print('Recording trajectory............\n')
-        
-    def get_current_state_for_inference(self) -> tuple[dict, np.ndarray, np.ndarray]:
-        state = self.env.get_state()
-        
-        # hack for octo
-        state = np.concatenate((state[:10], np.expand_dims(state[21], axis=0)))
-        state = np.expand_dims(state, axis=0)
-        # end hack
-        
-        state = np.expand_dims(state, axis=0)
-        data = {'proprio': state}
-        
-        cam_primary, cam_wrist = self.logger.primary_camera, self.logger.wrist_camera
-        if cam_primary:
-            img_primary = cam_primary.logs[-1]
-            img_primary = np.expand_dims(img_primary, axis=0)
-            data['primary_image'] = img_primary
-        if cam_wrist:
-            img_wrist = cam_wrist.logs[-1]
-            img_wrist = np.expand_dims(img_wrist, axis=0)
-            data['wrist_image'] = img_wrist
-        
-        return data
+
+    def move_randomly(self, n_steps=25):
+        factor = random.choice([0, 0, 0, 1, 2, 3])
+
+        if not factor:
+            return
+
+        # Random dx dy dz dyaw dpitch droll on reset
+        dx = factor * np.random.uniform(-0.1, 0.3) / n_steps
+        dy = factor * np.random.uniform(-0.3, 0.3) / n_steps
+        dz = factor * np.random.uniform(-0.3, 0) / n_steps
+        dyaw = factor * np.random.uniform(-15, 15) / n_steps
+        dpitch = factor * np.random.uniform(-15, 15) / n_steps
+        droll = factor * np.random.uniform(-45, 45) / n_steps
+
+        for _ in range(n_steps):
+            self.env.step(np.array([dx, dy, dz, dyaw, dpitch, droll, 0]))
 
     def enable_spacemouse_control(self, event: threading.Event, log=True, release_gripper_on_exit=True, reset=True):
         # print(f"Starting SpaceMouse control for {self.max_runtime} seconds...")
@@ -126,7 +107,7 @@ class FrankaController:
             self.env.step(action)
 
         if log:
-            time.sleep(1)
+            time.sleep(1) # TODO: maybe remove this
             recorded_successfully = self.logger.exit_logging()
         
         if release_gripper_on_exit and self.is_gripping:
@@ -135,20 +116,7 @@ class FrankaController:
         if reset:
             self.env.reset()
             if self.randomize_starting_position:
-                n_steps = 25
-                
-                factor = random.choice([0, 0, 0, 1, 2, 3])
-
-                # Random dx dy dz dyaw dpitch droll on reset
-                dx = factor * np.random.uniform(-0.1, 0.3) / n_steps
-                dy = factor * np.random.uniform(-0.3, 0.3) / n_steps
-                dz = factor * np.random.uniform(-0.3, 0) / n_steps
-                dyaw = factor * np.random.uniform(-15, 15) / n_steps
-                dpitch = factor * np.random.uniform(-15, 15) / n_steps
-                droll = factor * np.random.uniform(-45, 45) / n_steps
-
-                for s in range(n_steps):
-                    self.env.step(np.array([dx, dy, dz, dyaw, dpitch, droll, 0]))
+                self.move_randomly()
         
         return recorded_successfully
             
@@ -182,15 +150,43 @@ class FrankaController:
                     self.is_recording.clear()
                 else:
                     raise e
-                
-    def to_base64(self, img:np.ndarray) -> str:
+
+    @staticmethod         
+    def to_base64(img: np.ndarray) -> str:
         return base64.b64encode(zlib.compress(img.tobytes())).decode('utf-8')
     
-    def resize_image(self, img:np.ndarray, size:int=256) -> np.ndarray:
+    @staticmethod
+    def resize_image(img: np.ndarray, size: int=256) -> np.ndarray:
         return cv2.resize(img, (size, size))
+    
+    def get_current_state_for_inference(self, add_proprio: bool = False) -> tuple[dict, np.ndarray, np.ndarray]:
+        data = {"unnorm_key": "action"}
+        
+        if add_proprio:
+            state = self.env.get_state()
+            
+            # 7 joint angles, 3 xyz, 1 gripper
+            state = np.concatenate((state[:10], np.expand_dims(state[21], axis=0)))
+            state = np.expand_dims(state, axis=0)
+            state = np.expand_dims(state, axis=0)
+
+            data['proprio'] = state
+        
+        cam_primary, cam_wrist = self.logger.primary_camera, self.logger.wrist_camera
+        if cam_primary:
+            img_primary = cam_primary.logs[-1].copy()
+            img_primary = self.resize_image(img_primary)
+            img_primary = cv2.cvtColor(img_primary, cv2.COLOR_BGR2RGB)
+            data['primary_image'] = self.to_base64(img_primary)
+        if cam_wrist:
+            img_wrist = cam_wrist.logs[-1].copy()
+            img_wrist = self.resize_image(img_wrist, size=128)
+            img_wrist = cv2.cvtColor(img_wrist, cv2.COLOR_BGR2RGB)
+            data['wrist_image'] = self.to_base64(img_wrist)
+        return data
                 
-    def run_from_server(self, ip:str="http://0.0.0.0:8000/act", instruction=None, max_seconds=20):
-        if not instruction:
+    def run_from_server(self, ip: str="http://0.0.0.0:8000/act", instruction=None, save=False, max_seconds=20):
+        while not instruction:
             instruction = input(f"Enter instruction (or keep empty to ({instruction}): ")
 
         self.logger.enter_logging()
@@ -205,31 +201,20 @@ class FrankaController:
         while True:
             if (time.time() - start) > max_seconds:
                 break
-            state = self.get_current_state_for_inference()
-            # data = {"instruction": instruction, "state": state['proprio']}
-            data = {"instruction": instruction}
-            
-            if state["primary_image"] is not None:
-                img1 = state['primary_image']
-                img1 = self.resize_image(img1[0])
-                img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2RGB)
-                data["primary_image"] = self.to_base64(img1)
-            if state["wrist_image"] is not None:
-                img2 = state['wrist_image']
-                img2 = self.resize_image(img2[0], size=128)
-                img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2RGB)
-                data["wrist_image"] = self.to_base64(img2)
+
+            state = self.get_current_state_for_inference(add_proprio=False)
+            state['instruction'] = instruction
                 
             try:
-                data["unnorm_key"] = "action"
-                action = requests.post(ip, json=data).json()
+                action = requests.post(ip, json=state).json()
+                self.logger.log(action, inference=True)
                 self.env.step(action)
             except Exception as e:
                 print(f"Error in server communication: {e}")
                 break
     
-        self.logger.exit_logging(save=False)
+        self.logger.exit_logging(save=save, inference=True, task_desc=instruction)
         
-    def continually_run_from_server(self, instruction: str = "pick up the blue block"):      
+    def continually_run_from_server(self, instruction: str = "pick up the blue block", save=False):      
         while True:
-            self.run_from_server(instruction=instruction)
+            self.run_from_server(instruction=instruction, save=save)
