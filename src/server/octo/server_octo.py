@@ -55,10 +55,11 @@ import argparse
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--octo_path', type=str, required=True)
+    parser.add_argument('--window_size', type=int, default=1)
     return parser.parse_args()
 
 class OctoServer:
-    def __init__(self, octo_path: Union[str, Path]):
+    def __init__(self, octo_path: Union[str, Path], window_size: int = 1):
         """
         A simple server for Octo models; exposes `/act` to predict an action for a given image + instruction.
             => Takes in {"image": np.ndarray, "instruction": str, "unnorm_key": Optional[str]}
@@ -69,6 +70,13 @@ class OctoServer:
 
         self.model = OctoModel.load_pretrained(self.octo_path)  # TODO: device=self.device)
         print(self.model.get_pretty_spec())
+
+        self.previous = {}
+        
+        if not window_size == 1 or window_size == 2:
+            raise ValueError("Only window sizes of 1 or 2 are supported.")
+        
+        self.window_size = window_size
 
     def predict_action(self, payload: Dict[str, Any]) -> str:
         try:
@@ -85,6 +93,20 @@ class OctoServer:
 
             primary_image = np.frombuffer(zlib.decompress(base64.b64decode(primary_image)), dtype=np.uint8).reshape((1, 1, 256, 256, 3))
             wrist_image = np.frombuffer(zlib.decompress(base64.b64decode(wrist_image)), dtype=np.uint8).reshape((1, 1, 128, 128, 3))
+
+            if self.window_size == 2:
+                if "primary_image" not in self.previous or "wrist_image" not in self.previous:
+                    self.previous["primary_image"] = primary_image
+                    self.previous["wrist_image"] = wrist_image
+
+                window_primary_image = np.concatenate([self.previous["primary_image"], primary_image], axis=1)
+                window_wrist_image = np.concatenate([self.previous["wrist_image"], wrist_image], axis=1)
+
+                self.previous["primary_image"] = primary_image
+                self.previous["wrist_image"] = wrist_image
+            else:
+                window_primary_image = primary_image
+                window_wrist_image = wrist_image
             
             if isinstance(instruction, str):
                 instruction = [instruction]
@@ -93,9 +115,9 @@ class OctoServer:
             observation = {
                 # 'primary_image': primary_image,
                 # 'wrist_image': wrist_image,
-                'image_primary': primary_image,
-                'image_wrist': wrist_image,
-                'timestep_pad_mask': np.full((1, primary_image.shape[1]), True, dtype=bool),
+                'image_primary': window_primary_image,
+                'image_wrist': window_wrist_image,
+                'timestep_pad_mask': np.full((1, window_primary_image.shape[1]), True, dtype=bool),
                 # 'proprio': payload["state"]
             }
             task = self.model.create_tasks(texts=instruction)                  # for language conditioned
@@ -145,11 +167,11 @@ class OctoServer:
 
 
 @draccus.wrap()
-def deploy(octo_path: str) -> None:
-    server = OctoServer(octo_path)
+def deploy(octo_path: str, window_size: int = 1) -> None:
+    server = OctoServer(octo_path, window_size)
     server.run("0.0.0.0", port=8000)
 
 
 if __name__ == "__main__":
     args = parse_args()
-    deploy(args.octo_path)
+    deploy(args.octo_path, args.window_size)
