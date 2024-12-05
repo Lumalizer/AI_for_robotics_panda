@@ -212,10 +212,12 @@ class FrankaController:
             if state["primary_image"] is not None:
                 img1 = state['primary_image']
                 img1 = self.resize_image(img1[0])
+                img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2RGB)
                 data["primary_image"] = self.to_base64(img1)
             if state["wrist_image"] is not None:
                 img2 = state['wrist_image']
                 img2 = self.resize_image(img2[0], size=128)
+                img2 = cv2.cvtColor(img1, cv2.COLOR_BGR2RGB)
                 data["wrist_image"] = self.to_base64(img2)
                 
             try:

@@ -158,6 +158,8 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
             ret, frame = cap.read()
             if not ret:
                 break
+            # make sure to load as RGB, so we do not train on BGR images
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frames.append(frame)
 
         cap.release()
