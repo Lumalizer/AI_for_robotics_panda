@@ -199,19 +199,19 @@ class FrankaController:
                 data['wrist_image'] = self.to_base64(img_wrist)
         return data
                 
-    def run_from_server(self, ip: str="http://0.0.0.0:8000/act", instruction=None, save=False, max_seconds=60):
+    def run_from_server(self, ip: str="http://0.0.0.0:8000/act", instruction=None, save=False, max_seconds=30):
         while not instruction:
             instruction = input(f"Enter instruction (or keep empty to ({instruction}): ")
 
-        self.logger.enter_logging()
-        for camera in self.logger.cameras:
-            while not camera.logs:
-                time.sleep(0.1)
-                
         self.env.reset()
         
         if self.mode == "openvla":
             self.move_randomly()
+            
+        self.logger.enter_logging()
+        for camera in self.logger.cameras:
+            while not camera.logs:
+                time.sleep(0.1)
         
         print(f"Performing command ({instruction}) for {max_seconds} seconds...")
         start = time.time()
