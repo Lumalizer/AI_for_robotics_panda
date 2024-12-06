@@ -73,7 +73,7 @@ class OctoServer:
 
         self.previous = {}
         
-        if not window_size == 1 or window_size == 2:
+        if not (window_size == 1 or window_size == 2):
             raise ValueError("Only window sizes of 1 or 2 are supported.")
         
         self.window_size = window_size
