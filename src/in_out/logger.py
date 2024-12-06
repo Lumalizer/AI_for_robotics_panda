@@ -67,8 +67,8 @@ class Logger:
         if not inference:
             self._logs['gripper'].append(self.fc.is_gripping)
         else:            
-            grip = int(action[-1] >= 0.8)
-            release = int(action[-1] <= 0.2)
+            grip = int(action[-1] >= 1.0)
+            release = int(action[-1] <= 0.0)
 
             if grip:
                 self._logs['gripper'].append(1)

@@ -71,9 +71,9 @@ def franka_controller_process(franka_ip, action_space, conn, parent_conn_gripper
                         delta_rot = new_action[3:6] *multiplier # delta_yaw, delta_pitch, delta_roll
                         gripper_action = new_action[6]
                         
-                        if gripper_action >= 0.8:
+                        if gripper_action >= 1.0:
                             gripper_action = 1
-                        elif gripper_action <= 0.2:
+                        elif gripper_action <= 0.0:
                             gripper_action = 0
                         else:
                             gripper_action = gripper_state
