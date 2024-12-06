@@ -29,9 +29,12 @@ class FrankaController:
                  action_multiplier: int=1,
                  fps=30,
                  
+                 mode="octo",
+                 unnorm_key=None,
                  randomize_starting_position=False):
         
         self.env = env if env else RealFrankaEnv(step_duration_s=step_duration_s, multiplier=action_multiplier, action_space="cartesian")
+        self.execution_horizon = execution_horizon
         
         if execution_horizon > 1:
             self.env = RHCWrapper(self.env, execution_horizon)
@@ -42,11 +45,20 @@ class FrankaController:
         
         self.logger = logger if logger else Logger(self, fps)
         self.dataset_name = dataset_name
+        self.mode = mode
         
         self.step_duration_s = step_duration_s
         self.fps = fps
         self.randomize_starting_position = randomize_starting_position
-
+        
+        if mode not in ["octo", "openvla"]:
+            raise ValueError(f"Invalid mode: {mode}. Must be one of ['octo', 'openvla']")
+        
+        if not unnorm_key:
+            if mode == "octo":
+                self.unnorm_key = "action"
+            elif mode == "openvla":
+                self.unnorm_key = "air_net"
 
         self.spacemouse_controller = SpaceMouseController(
             xyz_multiplier, angle_multiplier, 
@@ -76,8 +88,8 @@ class FrankaController:
             self.is_recording.set()
             print('Recording trajectory............\n')
 
-    def move_randomly(self, n_steps=25):
-        factor = random.choice([0, 0, 0, 1, 2, 3])
+    def move_randomly(self, n_steps=25, factors=[0,0,0,1,2,3]):
+        factor = random.choice(factors)
 
         if not factor:
             return
@@ -160,7 +172,7 @@ class FrankaController:
         return cv2.resize(img, (size, size))
     
     def get_current_state_for_inference(self, add_proprio: bool = False) -> tuple[dict, np.ndarray, np.ndarray]:
-        data = {"unnorm_key": "action"}
+        data = {"unnorm_key": self.unnorm_key}
         
         if add_proprio:
             state = self.env.get_state()
@@ -177,15 +189,17 @@ class FrankaController:
             img_primary = cam_primary.logs[-1].copy()
             img_primary = self.resize_image(img_primary)
             img_primary = cv2.cvtColor(img_primary, cv2.COLOR_BGR2RGB)
-            data['primary_image'] = self.to_base64(img_primary)
+            img_key = "image" if self.mode == "openvla" else "primary_image"
+            data[img_key] = self.to_base64(img_primary)
         if cam_wrist:
             img_wrist = cam_wrist.logs[-1].copy()
             img_wrist = self.resize_image(img_wrist, size=128)
             img_wrist = cv2.cvtColor(img_wrist, cv2.COLOR_BGR2RGB)
-            data['wrist_image'] = self.to_base64(img_wrist)
+            if not self.mode == "openvla":
+                data['wrist_image'] = self.to_base64(img_wrist)
         return data
                 
-    def run_from_server(self, ip: str="http://0.0.0.0:8000/act", instruction=None, save=False, max_seconds=20):
+    def run_from_server(self, ip: str="http://0.0.0.0:8000/act", instruction=None, save=False, max_seconds=60):
         while not instruction:
             instruction = input(f"Enter instruction (or keep empty to ({instruction}): ")
 
@@ -195,6 +209,9 @@ class FrankaController:
                 time.sleep(0.1)
                 
         self.env.reset()
+        
+        if self.mode == "openvla":
+            self.move_randomly()
         
         print(f"Performing command ({instruction}) for {max_seconds} seconds...")
         start = time.time()
@@ -207,14 +224,15 @@ class FrankaController:
                 
             try:
                 action = requests.post(ip, json=state).json()
-                self.logger.log(action[0].copy(), inference=True)
+                logged_action = action.copy() if self.execution_horizon == 1 else action[0].copy()
+                self.logger.log(logged_action, inference=True)
                 self.env.step(action)
             except Exception as e:
                 print(f"Error in server communication: {e}")
                 break
     
         self.env.stop_controller()
-        self.logger.exit_logging(save=True, inference=True, task_desc=instruction)
+        self.logger.exit_logging(save=save, inference=True, task_desc=instruction)
         
     def continually_run_from_server(self, instruction: str = "pick up the blue block", save=False):      
         while True:

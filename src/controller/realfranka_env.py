@@ -19,8 +19,8 @@ def gripper_controller_process(franka_ip, conn):
                 gripper.move(0.08, 0.5)
             elif cmd[0] == 'close':
                 # TODO : gripper.grasp should probably be used to pick up items of various size, but it is buggy (sometimes, gripper connection is lost completely)
-                # gripper.grasp(0.02, 0.5, 100, .3, .3)
-                gripper.move(0.035, 0.5)
+                # gripper.grasp(0.02, 0.5, 100, .3, .3) # for ironing
+                gripper.move(0.035, 0.5) # normal
             elif cmd[0] == 'read':
                 grip = gripper.read_once().is_grasped
                 conn.send(grip)
@@ -71,9 +71,9 @@ def franka_controller_process(franka_ip, action_space, conn, parent_conn_gripper
                         delta_rot = new_action[3:6] *multiplier # delta_yaw, delta_pitch, delta_roll
                         gripper_action = new_action[6]
                         
-                        if gripper_action >= 1.00:
+                        if gripper_action >= 0.8:
                             gripper_action = 1
-                        elif gripper_action <= 0:
+                        elif gripper_action <= 0.2:
                             gripper_action = 0
                         else:
                             gripper_action = gripper_state
