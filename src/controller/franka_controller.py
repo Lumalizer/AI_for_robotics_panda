@@ -207,13 +207,14 @@ class FrankaController:
                 
             try:
                 action = requests.post(ip, json=state).json()
-                self.logger.log(action, inference=True)
+                self.logger.log(action[0].copy(), inference=True)
                 self.env.step(action)
             except Exception as e:
                 print(f"Error in server communication: {e}")
                 break
     
-        self.logger.exit_logging(save=save, inference=True, task_desc=instruction)
+        self.env.stop_controller()
+        self.logger.exit_logging(save=True, inference=True, task_desc=instruction)
         
     def continually_run_from_server(self, instruction: str = "pick up the blue block", save=False):      
         while True:

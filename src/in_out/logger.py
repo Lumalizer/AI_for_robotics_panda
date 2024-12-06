@@ -61,12 +61,12 @@ class Logger:
             camera.clear_logs()
         
     def log(self, action, inference=False):
-        self._logs['action'].append(action)
         self._logs['time'].append(time.time_ns())
+        self._logs['action'].append(action)
 
         if not inference:
             self._logs['gripper'].append(self.fc.is_gripping)
-        else:
+        else:            
             grip = int(action[-1] >= 1)
             release = int(action[-1] <= 0)
 
