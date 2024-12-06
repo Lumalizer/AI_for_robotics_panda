@@ -9,6 +9,9 @@ import cv2
 import threading
 import time
 
+data_root = 'datasets/raw_data'
+# data_root = 'datasets/inference_data'
+
 
 def draw_figure(canvas, figure):
     figure_canvas_agg = FigureCanvasTkAgg(figure, canvas)
@@ -23,7 +26,7 @@ def clear_canvas(canvas):
 
 
 def update_plot_and_description(selected_dataset, selected_episode):
-    data = EpisodeLogState.from_numpy(f'datasets/raw_data/{selected_dataset}/{selected_episode}')
+    data = EpisodeLogState.from_numpy(f'{data_root}/{selected_dataset}/{selected_episode}')
     keys = list(data.__dict__.keys())
 
     task_description = data.task_description or 'No description available'
@@ -54,10 +57,10 @@ def update_plot_and_description(selected_dataset, selected_episode):
 
 
 def get_task_descriptions(selected_dataset):
-    episodes = [f for f in os.listdir(f'datasets/raw_data/{selected_dataset}') if f.endswith('.npz')]
+    episodes = [f for f in os.listdir(f'{data_root}/{selected_dataset}') if f.endswith('.npz')]
     task_descriptions = []
     for episode in episodes:
-        data = EpisodeLogState.from_numpy(f'datasets/raw_data/{selected_dataset}/{episode}')
+        data = EpisodeLogState.from_numpy(f'{data_root}/{selected_dataset}/{episode}')
         task_description = data.task_description or 'No description available'
         task_descriptions.append(task_description)
     return Counter(task_descriptions)
@@ -132,7 +135,7 @@ def auto_select_first_dataset_and_episode(available_datasets):
     if available_datasets:
         selected_dataset = available_datasets[0]
         window['selected_dataset'].update(selected_dataset)
-        episodes = [f for f in os.listdir(f'datasets/raw_data/{selected_dataset}') if f.endswith('.npz')]
+        episodes = [f for f in os.listdir(f'{data_root}/{selected_dataset}') if f.endswith('.npz')]
         episodes = sorted(episodes, key=lambda x: int(x.split('_')[-1].split('.')[0]))
         if episodes:
             selected_episode = episodes[0]
@@ -151,9 +154,9 @@ def auto_select_first_dataset_and_episode(available_datasets):
 
 def play_videos(selected_dataset, selected_episode):
     primary_thread = threading.Thread(target=play_video, args=(
-        f'datasets/raw_data/{selected_dataset}/primary_{selected_episode.replace(".npz", ".mp4")}', '-PRIMARY_VIDEO-'), daemon=True)
+        f'{data_root}/{selected_dataset}/primary_{selected_episode.replace(".npz", ".mp4")}', '-PRIMARY_VIDEO-'), daemon=True)
     wrist_thread = threading.Thread(target=play_video, args=(
-        f'datasets/raw_data/{selected_dataset}/wrist_{selected_episode.replace(".npz", ".mp4")}', '-WRIST_VIDEO-'), daemon=True)
+        f'{data_root}/{selected_dataset}/wrist_{selected_episode.replace(".npz", ".mp4")}', '-WRIST_VIDEO-'), daemon=True)
     primary_thread.start()
     wrist_thread.start()
     video_threads.extend([primary_thread, wrist_thread])
@@ -166,7 +169,7 @@ def handle_events(event, values):
     elif event == 'dataset_list':
         selected_dataset = values['dataset_list'][0]
         window['selected_dataset'].update(selected_dataset)
-        episodes = [f for f in os.listdir(f'datasets/raw_data/{selected_dataset}') if f.endswith('.npz')]
+        episodes = [f for f in os.listdir(f'{data_root}/{selected_dataset}') if f.endswith('.npz')]
         episodes = sorted(episodes, key=lambda x: int(x.split('_')[-1].split('.')[0]))
         window['episode_list'].update(episodes)
 
@@ -183,15 +186,15 @@ def handle_events(event, values):
         play_videos(selected_dataset, selected_episode)
     elif event == 'task_description_list':
         selected_task_description = values['task_description_list'][0].split(' (')[0]
-        episodes = [f for f in os.listdir(f'datasets/raw_data/{selected_dataset}') if f.endswith('.npz')]
+        episodes = [f for f in os.listdir(f'{data_root}/{selected_dataset}') if f.endswith('.npz')]
         filtered_episodes = []
         for episode in episodes:
-            data = EpisodeLogState.from_numpy(f'datasets/raw_data/{selected_dataset}/{episode}')
+            data = EpisodeLogState.from_numpy(f'{data_root}/{selected_dataset}/{episode}')
             if data.task_description == selected_task_description:
                 filtered_episodes.append(episode)
         window['episode_list'].update(sorted(filtered_episodes, key=lambda x: int(x.split('_')[-1].split('.')[0])))
     elif event == 'Clear Selection':
-        episodes = [f for f in os.listdir(f'datasets/raw_data/{selected_dataset}') if f.endswith('.npz')]
+        episodes = [f for f in os.listdir(f'{data_root}/{selected_dataset}') if f.endswith('.npz')]
         episodes = sorted(episodes, key=lambda x: int(x.split('_')[-1].split('.')[0]))
         window['episode_list'].update(episodes)
     elif event.startswith('-UPDATE-'):
@@ -200,8 +203,8 @@ def handle_events(event, values):
     return True
 
 
-available_datasets = sorted([dir for dir in os.listdir('datasets/raw_data')
-                             if os.path.isdir(f'datasets/raw_data/{dir}')])
+available_datasets = sorted([dir for dir in os.listdir(data_root)
+                             if os.path.isdir(f'{data_root}/{dir}')])
 window = initialize_window(available_datasets)
 auto_select_first_dataset_and_episode(available_datasets)
 
