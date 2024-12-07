@@ -41,11 +41,22 @@ def merge_datasets(dataset_names: list, new_dataset_name: str, raw_data_folder="
             shutil.copy(wrist_camera_files[key], f"{raw_data_folder}/{new_dataset_name}/wrist_episode_{key}.mp4")
             newcsv.write(csv_lines[key])
 
+    with open(f"{raw_data_folder}/{new_dataset_name}/datasets_used.csv", "w") as f:
+        for dataset_name in dataset_names:
+            f.write(f"{dataset_name}\n")
+
 
 if __name__ == "__main__":
-    merge_datasets(["50_recover_from_extreme_positions_50", "100_stack_blue_red_100",
-                    "100_stack_red_blue_100", "knock_over_bottle_25", "pack_box_50",
-                    "pick_up_blue_200", "pick_up_bottle_25", "pick_up_doll_25",
-                    "pick_up_doll_25_with_distractors", "pick_up_green_25_with_distractors",
-                    "pick_up_red_100", "pick_up_sponge_25", "place_blue_in_box_50", "unpack_box_50"],
-                   new_dataset_name="14datasets_05_12_2024_recover_stack_knockover_pack_pickup_place_unpack")
+    merge_datasets([
+        "pick_up_blue_200", "pick_up_blue_horizontal_distractors_25",
+        "pick_up_red_100", "pick_up_red_horizontal_distractors_25", 
+        "pick_up_green_25_with_distractors", "pick_up_green_horizontal_distractors_25",
+        "pick_up_yellow_block_25", "pick_up_yellow_horizontal_distractors_25",
+        "stack_blue_red_100", "stack_red_blue_100",
+        "recover_from_extreme_positions_50",
+        "knock_over_bottle_25", "pick_up_bottle_25", "pick_up_bottle_horizontal_25",
+        "place_blue_in_box_50", "pack_box_50", "unpack_box_50",
+        "pick_up_doll_25", "pick_up_doll_25_with_distractors",
+        "pick_up_sponge_25",
+    ],
+        new_dataset_name="21datasets_06_12_2024_recover_stack_knockover_pack_pickup_place_unpack")

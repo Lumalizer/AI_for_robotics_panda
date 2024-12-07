@@ -23,7 +23,7 @@ if __name__ == '__main__':
 
 
     # fixes to the task descriptions
-    update_task_description('datasets/raw_data/100_stack_red_blue_100',
+    update_task_description('datasets/raw_data/stack_red_blue_100',
                             '', 'stack the red block on the blue block')
     
     update_task_description('datasets/raw_data/pack_box_50',
@@ -37,4 +37,8 @@ if __name__ == '__main__':
     update_task_description('datasets/raw_data/unpack_box_50',
                             "50,remove all of the items from the box",
                             "remove all of the items from the box")
+    
+    update_task_description('datasets/raw_data/ironing_block_25',
+                            "",
+                            "iron the shirt")
 

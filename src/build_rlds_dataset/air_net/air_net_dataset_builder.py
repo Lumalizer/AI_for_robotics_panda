@@ -11,7 +11,7 @@ import sys
 
 p = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../src/'))
 sys.path.append(p)
-from data.episode_logstate import EpisodeLogState
+from data.episode_logstate import EpisodeLogState  # noqa: E402
 
 # for multiprocessing
 # we need to add the module folder to python path for multiprocessing
@@ -21,11 +21,10 @@ from data.episode_logstate import EpisodeLogState
 # sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 
-
 class AirNet(tfds.core.GeneratorBasedBuilder):
     """DatasetBuilder for example dataset."""
 
-    VERSION = tfds.core.Version('1.0.21')
+    VERSION = tfds.core.Version('1.0.22')
     RELEASE_NOTES = {
         '1.0.0': 'Initial release.',
         '1.0.1': 'hover_simple_ds',
@@ -49,6 +48,7 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
         '1.0.19': 'pick_up_blue_200_15hz',
         '1.0.20': 'pick_up_blue_200',
         '1.0.21': '14datasets_05_12_2024_recover_stack_knockover_pack_pickup_place_unpack',
+        '1.0.22': '21datasets_06_12_2024_recover_stack_knockover_pack_pickup_place_unpack',
     }
     # make sure the name matches the folder
 
