@@ -24,7 +24,7 @@ from data.episode_logstate import EpisodeLogState  # noqa: E402
 class AirNet(tfds.core.GeneratorBasedBuilder):
     """DatasetBuilder for example dataset."""
 
-    VERSION = tfds.core.Version('1.0.22')
+    VERSION = tfds.core.Version('1.0.24')
     RELEASE_NOTES = {
         '1.0.0': 'Initial release.',
         '1.0.1': 'hover_simple_ds',
@@ -49,6 +49,8 @@ class AirNet(tfds.core.GeneratorBasedBuilder):
         '1.0.20': 'pick_up_blue_200',
         '1.0.21': '14datasets_05_12_2024_recover_stack_knockover_pack_pickup_place_unpack',
         '1.0.22': '21datasets_06_12_2024_recover_stack_knockover_pack_pickup_place_unpack',
+        '1.0.23': 'ironing_block_25',
+        '1.0.24': 'pickup_200blue_100red_stack_100blue_red_100red_blue',
     }
     # make sure the name matches the folder
 
