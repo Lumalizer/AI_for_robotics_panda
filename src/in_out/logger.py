@@ -9,6 +9,8 @@ from in_out.camera.LogitechCamera import LogitechCamera
 from in_out.camera.RealSenseCamera import RealSenseCamera
 import matplotlib.pyplot as plt
 import threading
+from options import Options
+import datetime
 
 class Logger:
     def __init__(self, fc: 'FrankaController', fps, show_cameras=True) -> None:
@@ -90,35 +92,37 @@ class Logger:
             if not hasattr(camera, 'cam_thread'):
                 camera.start_camera_thread()
         
-    def exit_logging(self, save=True, inference=False, task_desc=None, success_or_failure=None, total_time=None):
+    def exit_logging(self, options: Options, save=True, inference=False, success_or_failure=None, total_time=None, verbose=False):
         self.fc.is_recording.clear()
         self.fc.env.disable_logging()
+        
+        instruction = options.instruction
         
         if save:
             logs = self.get_raw_logstate()
             
-            if not task_desc:
-                task_desc = input(f"""Enter task description such as 'pick up the red block'
+            if not instruction:
+                instruction = input(f"""Enter task description such as 'pick up the red block'
                                 or press ENTER to re-use the previous task description: (\033[92m{self.previous_task_desc}\033[0m)
                                 or type 'skip' to skip saving this trajectory: """).strip()
-            if task_desc == 'skip':
+            if instruction == 'skip':
                 return False
-            elif not task_desc:
-                task_desc = self.previous_task_desc
-            elif len(task_desc) < 4:
-                task_desc = self.previous_task_desc
+            elif not instruction:
+                instruction = self.previous_task_desc
+            elif len(instruction) < 4:
+                instruction = self.previous_task_desc
                 print("Task description too short, re-using previous task description.\n")
                 
             
-            self.previous_task_desc = task_desc
-            logs.task_description = task_desc
+            self.previous_task_desc = instruction
+            logs.task_description = instruction
             
             if inference:
                 raw_or_inference_subfolder = "inference_data"
             else:
                 raw_or_inference_subfolder = "raw_data"
 
-            dataset_path = os.path.join("datasets", raw_or_inference_subfolder, self.fc.dataset_name)
+            dataset_path = os.path.join("datasets", raw_or_inference_subfolder, self.fc.options.save_folder)
             os.makedirs(dataset_path, exist_ok=True)
             
             # fill in the gaps in the episode numbers if needed
@@ -134,13 +138,16 @@ class Logger:
             metadata_exists = os.path.exists(os.path.join(dataset_path, 'data.csv'))
             with open(os.path.join(dataset_path, 'data.csv'), 'a') as f:
                 if not metadata_exists:
-                    f.write("episode,task_description,success_or_failure,total_time\n")
-                f.write(f"{ep_num},{task_desc},{success_or_failure}, {total_time}\n")
+                    f.write("episode,mode,model_type,task_description,success_or_failure,total_time,execution_horizon,prediction_horizon,window_size,proprio,date\n")
+                now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                f.write(f"{ep_num},{options.mode},{options.model_type},{instruction},{success_or_failure},{total_time},{options.execution_horizon},{options.prediction_horizon},{options.window_size},{options.proprio},{now}\n")
             
             print(f'Trajectory saved to {episode_path}. \n')
-            print(f'Gripper frames: {len(self._logs["gripper"])} \nGripper frames closed: {sum(self._logs["gripper"])}\n\n')
-            for camera in self.cameras:
-                print(f'{camera.name} camera frames: {len(camera.logs)}, \n{camera.name} camera fps (assuming 100 gripper logs/s): {len(camera.logs) / (len(self._logs["gripper"]) / 100)}' )
+            
+            if verbose:
+                print(f'Gripper frames: {len(self._logs["gripper"])} \nGripper frames closed: {sum(self._logs["gripper"])}\n\n')
+                for camera in self.cameras:
+                    print(f'{camera.name} camera frames: {len(camera.logs)}, \n{camera.name} camera fps (assuming 100 gripper logs/s): {len(camera.logs) / (len(self._logs["gripper"]) / 100)}' )
             
             return True
 

@@ -14,55 +14,33 @@ import cv2
 from controller.wrappers_octo import RHCWrapper
 import random
 from pynput import keyboard
+from options import Options
 
 class FrankaController:
-    def __init__(self,
+    def __init__(self, 
+                 options: Options,
                  env:RealFrankaEnv=None,
-                 logger:Logger=None, 
-                 dataset_name="no_name",
-                 
-                 xyz_multiplier=0.03, 
-                 angle_multiplier=15,
-                 
-                 step_duration_s=1/30,
-                 execution_horizon=1,
-                 
-                 action_multiplier: int=1,
-                 fps=30,
-                 
-                 mode="octo",
-                 unnorm_key=None,
-                 randomize_starting_position=False):
+                 logger:Logger=None):
         
-        self.env = env if env else RealFrankaEnv(step_duration_s=step_duration_s, multiplier=action_multiplier, action_space="cartesian")
-        self.execution_horizon = execution_horizon
+        self.options = options
         
-        if execution_horizon > 1:
-            self.env = RHCWrapper(self.env, execution_horizon)
+        if not env:
+            env = RealFrankaEnv(step_duration_s=options.step_duration_s, 
+                                multiplier=options.action_multiplier, action_space="cartesian")
+        self.env = env
+        
+        if options.execution_horizon > 1:
+            self.env = RHCWrapper(self.env, options.execution_horizon)
 
         self.is_gripping = False
         self.is_pre_controlling = threading.Event() # allows moving the arm before recording logs
         self.is_recording = threading.Event()
         
-        self.logger = logger if logger else Logger(self, fps)
-        self.dataset_name = dataset_name
-        self.mode = mode
-        
-        self.step_duration_s = step_duration_s
-        self.fps = fps
-        self.randomize_starting_position = randomize_starting_position
-        
-        if mode not in ["octo", "openvla"]:
-            raise ValueError(f"Invalid mode: {mode}. Must be one of ['octo', 'openvla']")
-        
-        if not unnorm_key:
-            if mode == "octo":
-                self.unnorm_key = "action"
-            elif mode == "openvla":
-                self.unnorm_key = "air_net"
+        self.logger = logger if logger else Logger(self, options.fps)
+
 
         self.spacemouse_controller = SpaceMouseController(
-            xyz_multiplier, angle_multiplier, 
+            options.xyz_multiplier, options.angle_multiplier, 
             button_left_callback=self.toggle_recording, 
             button_right_callback=self.toggle_gripper)
         
@@ -106,10 +84,13 @@ class FrankaController:
         for _ in range(n_steps):
             self.env.step(np.array([dx, dy, dz, dyaw, dpitch, droll, 0]))
 
-    def enable_spacemouse_control(self, event: threading.Event, log=True, release_gripper_on_exit=True, reset=True):
+    def enable_spacemouse_control(self, event: threading.Event, release_gripper_on_exit=True, log=None, reset=True):
         # print(f"Starting SpaceMouse control for {self.max_runtime} seconds...")
         recorded_successfully = False
         
+        if log is None:
+            log = self.options.log
+            
         log and self.logger.enter_logging()        
         
         while event.is_set():
@@ -121,19 +102,24 @@ class FrankaController:
 
         if log:
             time.sleep(1) # TODO: maybe remove this
-            recorded_successfully = self.logger.exit_logging()
+            recorded_successfully = self.logger.exit_logging(self.options)
         
         if release_gripper_on_exit and self.is_gripping:
             self.toggle_gripper()
         
         if reset:
             self.env.reset()
-            if self.randomize_starting_position:
+            if self.options.randomize_starting_position:
                 self.move_randomly()
         
         return recorded_successfully
             
-    def collect_demonstrations(self, amount=10, enable_pre_control=True):
+    def collect_demonstrations(self, enable_pre_control=None):
+        amount = self.options.n_repetitions
+        
+        if not enable_pre_control:
+            enable_pre_control = self.options.enable_pre_control
+            
         while amount:
             try:
                 self.spacemouse_controller.read()
@@ -156,7 +142,7 @@ class FrankaController:
             except Exception as e:
                 print(f"Error in recording trajectory: {e}")
                 self.env.reset()
-                self.logger.exit_logging(save=False)
+                self.logger.exit_logging(self.options, save=False)
                 
                 if type(e) == RuntimeError:
                     print("attempting to restart...\n\n")
@@ -173,7 +159,7 @@ class FrankaController:
         return cv2.resize(img, (size, size))
     
     def get_current_state_for_inference(self, add_proprio: bool = False) -> tuple[dict, np.ndarray, np.ndarray]:
-        data = {"unnorm_key": self.unnorm_key}
+        data = {"unnorm_key": self.options.unnorm_key}
         
         if add_proprio:
             state = self.env.get_state()
@@ -190,20 +176,22 @@ class FrankaController:
             img_primary = cam_primary.logs[-1].copy()
             img_primary = self.resize_image(img_primary)
             img_primary = cv2.cvtColor(img_primary, cv2.COLOR_BGR2RGB)
-            img_key = "image" if self.mode == "openvla" else "primary_image"
+            img_key = "image" if self.options.mode == "openvla" else "primary_image"
             data[img_key] = self.to_base64(img_primary)
         if cam_wrist:
             img_wrist = cam_wrist.logs[-1].copy()
             img_wrist = self.resize_image(img_wrist, size=128)
             img_wrist = cv2.cvtColor(img_wrist, cv2.COLOR_BGR2RGB)
-            if not self.mode == "openvla":
+            if not self.options.mode == "openvla":
                 data['wrist_image'] = self.to_base64(img_wrist)
         return data
                 
-    def run_from_server(self, ip: str="http://0.0.0.0:8000/act", instruction=None, save=False, evaluating=True, max_seconds=30):
-        while not instruction:
+    def run_from_server(self, save=True, evaluating=True, remaining=None):            
+        while not self.options.instruction:
             instruction = input(f"Enter instruction (or keep empty to ({instruction}): ")
-
+            self.options.instruction = instruction
+            
+        instruction = self.options.instruction
         key_pressed = False
         
         def on_press(key):
@@ -224,19 +212,22 @@ class FrankaController:
 
         self.env.reset()
         
-        if self.mode == "openvla":
+        if self.options.mode == "openvla":
             self.move_randomly()
             
         self.logger.enter_logging()
         for camera in self.logger.cameras:
             while not camera.logs:
                 time.sleep(0.1)
+                
+        print(f"During operation, press \033[92m's'\033[0m for success, \033[91m'f'\033[0m for failure, 'r' for reset")
+           
         
-        print(f"Performing command ({instruction}) for {max_seconds} seconds...")
         start = time.time()
         while True:
-            time_elapsed = round(time.time() - start, 3)
-            if (time_elapsed) > max_seconds:
+            time_elapsed = round(time.time() - start, 2)
+            print(f"\033[KPerforming command ({instruction}) for {self.options.max_seconds} seconds. {round(self.options.max_seconds - time_elapsed,2)}s remaining. {remaining} trials remaining.", end="\r")
+            if (time_elapsed) > self.options.max_seconds:
                 break
             
             if key_pressed == 's':
@@ -249,15 +240,14 @@ class FrankaController:
                 print(f"Reset... {time_elapsed}s")
                 break
                 
-
             state = self.get_current_state_for_inference(add_proprio=False)
             state['instruction'] = instruction
                 
             try:
-                action = requests.post(ip, json=state).json()
+                action = requests.post(self.options.ip, json=state).json()
                 
-                logged_action = action.copy() if self.mode == "openvla" else action[0].copy()
-                action = action[0] if self.mode == "octo" and self.execution_horizon == 1 else action
+                logged_action = action.copy() if self.options.mode == "openvla" else action[0].copy()
+                action = action[0] if self.options.mode == "octo" and self.options.execution_horizon == 1 else action
                 
                 self.logger.log(logged_action, inference=True)
                 self.env.step(action)
@@ -267,19 +257,44 @@ class FrankaController:
     
         self.env.stop_controller()
         listener.stop()
-        self.logger.exit_logging(save=False, inference=True, task_desc=instruction)
+        self.logger.exit_logging(self.options, save=False, inference=True)
         
         if not key_pressed and evaluating:
+            print("\n")
+            print(f"Enter \033[92m's'\033[0m for success, \033[91m'f'\033[0m for failure, 'r' for reset: ")
             while key_pressed not in ['s', 'f', 'r']:
-                key_pressed = input("Enter 's' for success, 'f' for failure, 'r' for reset: ")
+                key_pressed = input()
+                
+        color = "\033[91m" if key_pressed == 'f' else "\033[92m" if key_pressed == 's' else "\033[0m"
+        time.sleep(0.5)
+        # clear the terminal input
+        print("\033[K")
+        print(f"Input 'enter' to confirm {color}'{key_pressed}'\033[0m or 'r' to reset: ")
+        print("\033[K")
+        print ("\033[A                             \033[A")
+        confirmation = None
         
-        if key_pressed == 'r':
-            return None
+        while confirmation not in ['', 'r', 's', 'f']:
+            confirmation = input()
+            if confirmation:
+                confirmation = confirmation.strip()[-1]
         
-        self.logger.exit_logging(save=save, inference=True, task_desc=instruction, 
+        if key_pressed == 'r' or confirmation == 'r':
+            print("\n")
+            return 'reset'
+        
+        self.logger.exit_logging(self.options, save=save, inference=True, 
                                  success_or_failure=(key_pressed == 's'), total_time=time_elapsed)
         
         
-    def continually_run_from_server(self, instruction: str = "pick up the blue block", save=False, max_seconds=30):      
-        while True:
-            self.run_from_server(instruction=instruction, save=save, max_seconds=max_seconds), 
+    def continually_run_from_server(self, instruction=None):
+        if instruction:
+            self.options.instruction = instruction
+        
+        i = self.options.n_repetitions
+        
+        while i:
+            result = self.run_from_server(save=self.options.log, remaining=i), 
+            if result == 'reset':
+                continue
+            i -= 1
