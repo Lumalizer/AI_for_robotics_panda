@@ -15,6 +15,8 @@ from controller.wrappers_octo import RHCWrapper
 import random
 from pynput import keyboard
 from options import Options
+import termios
+import sys
 
 class FrankaController:
     def __init__(self, 
@@ -194,6 +196,9 @@ class FrankaController:
         instruction = self.options.instruction
         key_pressed = False
         
+        def clear_input():
+            termios.tcflush(sys.stdin, termios.TCIFLUSH)
+        
         def on_press(key):
             nonlocal key_pressed
             try:
@@ -214,6 +219,12 @@ class FrankaController:
         
         if self.options.mode == "openvla":
             self.move_randomly()
+        
+        begin = None
+        clear_input()
+        while begin != '':
+            begin = input("Press enter to start the trial: ")
+        
             
         self.logger.enter_logging()
         for camera in self.logger.cameras:
@@ -291,7 +302,7 @@ class FrankaController:
         if instruction:
             self.options.instruction = instruction
         
-        i = self.options.n_repetitions
+        i = self.options.n_repetitions 
         
         while i:
             result = self.run_from_server(save=self.options.log, remaining=i), 

@@ -2,14 +2,15 @@ from controller.franka_controller import FrankaController
 from options import Options
 
 opts = Options(
-    instruction="iron the shirt",
-    subproject_folder="ironing_test",
+    instruction="stack the blue block on the red block",
+    subproject_folder="determine_octo_parameters",
     n_repetitions=20,
+    
+    execution_horizon=8,
+    prediction_horizon=8,
     
     mode="octo",
     model_type="small",
-    execution_horizon=8,
-    prediction_horizon=16,
     max_seconds=60,
 )
 
