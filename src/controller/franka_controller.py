@@ -278,17 +278,12 @@ class FrankaController:
                 
         color = "\033[91m" if key_pressed == 'f' else "\033[92m" if key_pressed == 's' else "\033[0m"
         time.sleep(0.5)
-        # clear the terminal input
-        print("\033[K")
-        print(f"Input 'enter' to confirm {color}'{key_pressed}'\033[0m or 'r' to reset: ")
-        print("\033[K")
-        print ("\033[A                             \033[A")
-        confirmation = None
         
-        while confirmation not in ['', 'r', 's', 'f']:
+        clear_input()
+        print(f"Input 'enter' to confirm {color}'{key_pressed}'\033[0m or 'r' to reset: ")
+        confirmation = None
+        while confirmation not in ['', 'r']:
             confirmation = input()
-            if confirmation:
-                confirmation = confirmation.strip()[-1]
         
         if key_pressed == 'r' or confirmation == 'r':
             print("\n")
