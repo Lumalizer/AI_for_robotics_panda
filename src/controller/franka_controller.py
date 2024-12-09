@@ -13,6 +13,7 @@ import zlib
 import cv2
 from controller.wrappers_octo import RHCWrapper
 import random
+from pynput import keyboard
 
 class FrankaController:
     def __init__(self,
@@ -199,9 +200,27 @@ class FrankaController:
                 data['wrist_image'] = self.to_base64(img_wrist)
         return data
                 
-    def run_from_server(self, ip: str="http://0.0.0.0:8000/act", instruction=None, save=False, max_seconds=30):
+    def run_from_server(self, ip: str="http://0.0.0.0:8000/act", instruction=None, save=False, evaluating=True, max_seconds=30):
         while not instruction:
             instruction = input(f"Enter instruction (or keep empty to ({instruction}): ")
+
+        key_pressed = False
+        
+        def on_press(key):
+            nonlocal key_pressed
+            try:
+                if key.char == ("s"):
+                    key_pressed = 's'
+                elif key.char == ("f"):
+                    key_pressed = 'f'
+                elif key.char == ("r"):
+                    key_pressed = 'r'
+            except AttributeError:
+                pass
+             
+            
+        listener = keyboard.Listener(on_press=on_press)
+        listener.start()
 
         self.env.reset()
         
@@ -216,15 +235,30 @@ class FrankaController:
         print(f"Performing command ({instruction}) for {max_seconds} seconds...")
         start = time.time()
         while True:
-            if (time.time() - start) > max_seconds:
+            time_elapsed = round(time.time() - start, 3)
+            if (time_elapsed) > max_seconds:
                 break
+            
+            if key_pressed == 's':
+                print(f"Success... {time_elapsed}s")
+                break
+            elif key_pressed == 'f':
+                print(f"Failure... {time_elapsed}s")
+                break
+            elif key_pressed == 'r':
+                print(f"Reset... {time_elapsed}s")
+                break
+                
 
             state = self.get_current_state_for_inference(add_proprio=False)
             state['instruction'] = instruction
                 
             try:
                 action = requests.post(ip, json=state).json()
-                logged_action = action.copy() if self.execution_horizon == 1 else action[0].copy()
+                
+                logged_action = action.copy() if self.mode == "openvla" else action[0].copy()
+                action = action[0] if self.mode == "octo" and self.execution_horizon == 1 else action
+                
                 self.logger.log(logged_action, inference=True)
                 self.env.step(action)
             except Exception as e:
@@ -232,7 +266,19 @@ class FrankaController:
                 break
     
         self.env.stop_controller()
-        self.logger.exit_logging(save=save, inference=True, task_desc=instruction)
+        listener.stop()
+        self.logger.exit_logging(save=False, inference=True, task_desc=instruction)
+        
+        if not key_pressed and evaluating:
+            while key_pressed not in ['s', 'f', 'r']:
+                key_pressed = input("Enter 's' for success, 'f' for failure, 'r' for reset: ")
+        
+        if key_pressed == 'r':
+            return None
+        
+        self.logger.exit_logging(save=save, inference=True, task_desc=instruction, 
+                                 success_or_failure=(key_pressed == 's'), total_time=time_elapsed)
+        
         
     def continually_run_from_server(self, instruction: str = "pick up the blue block", save=False, max_seconds=30):      
         while True:

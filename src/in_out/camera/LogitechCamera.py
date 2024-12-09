@@ -6,7 +6,7 @@ from in_out.camera.BaseCamera import BaseCamera
 # find devices with "v4l2-ctl --list-devices"
 
 class LogitechCamera(BaseCamera):
-    def __init__(self, camera_id : int = 8, *args, **kwargs):
+    def __init__(self, camera_id : int = 2, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.active = False
         

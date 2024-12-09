@@ -90,7 +90,7 @@ class Logger:
             if not hasattr(camera, 'cam_thread'):
                 camera.start_camera_thread()
         
-    def exit_logging(self, save=True, inference=False, task_desc=None):
+    def exit_logging(self, save=True, inference=False, task_desc=None, success_or_failure=None, total_time=None):
         self.fc.is_recording.clear()
         self.fc.env.disable_logging()
         
@@ -134,8 +134,8 @@ class Logger:
             metadata_exists = os.path.exists(os.path.join(dataset_path, 'data.csv'))
             with open(os.path.join(dataset_path, 'data.csv'), 'a') as f:
                 if not metadata_exists:
-                    f.write("episode,task_description\n")
-                f.write(f"{ep_num},{task_desc}\n")
+                    f.write("episode,task_description,success_or_failure,total_time\n")
+                f.write(f"{ep_num},{task_desc},{success_or_failure}, {total_time}\n")
             
             print(f'Trajectory saved to {episode_path}. \n')
             print(f'Gripper frames: {len(self._logs["gripper"])} \nGripper frames closed: {sum(self._logs["gripper"])}\n\n')

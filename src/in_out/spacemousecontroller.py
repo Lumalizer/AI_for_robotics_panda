@@ -48,8 +48,10 @@ class SpaceMouseController:
             if buttons[1]:
                 button_right_callback()
         
-        success = pyspacemouse.open(button_callback=button_callback)
-        if not success:
+        try:
+            pyspacemouse.open(button_callback=button_callback)
+        except Exception as e:
+            print("SpaceMouse not connected.")
             return None
             
         self.latest_state = pyspacemouse.read()
