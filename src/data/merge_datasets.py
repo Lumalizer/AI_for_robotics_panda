@@ -47,16 +47,26 @@ def merge_datasets(dataset_names: list, new_dataset_name: str, raw_data_folder="
 
 
 if __name__ == "__main__":
+    # merge_datasets([
+    #     "pick_up_blue_200", "pick_up_blue_horizontal_distractors_25",
+    #     "pick_up_red_100", "pick_up_red_horizontal_distractors_25",
+    #     "pick_up_green_25_with_distractors", "pick_up_green_horizontal_distractors_25",
+    #     "pick_up_yellow_block_25", "pick_up_yellow_horizontal_distractors_25",
+    #     "stack_blue_red_100", "stack_red_blue_100",
+    #     "recover_from_extreme_positions_50",
+    #     "knock_over_bottle_25", "pick_up_bottle_25", "pick_up_bottle_horizontal_25",
+    #     "place_blue_in_box_50", "pack_box_50", "unpack_box_50",
+    #     "pick_up_doll_25", "pick_up_doll_25_with_distractors",
+    #     "pick_up_sponge_25",
+    # ],
+    #     new_dataset_name="21datasets_06_12_2024_recover_stack_knockover_pack_pickup_place_unpack")
+
+    # merge_datasets([
+    #     "pick_up_blue_200", "pick_up_red_100", "stack_blue_red_100", "stack_red_blue_100",
+    # ],
+    #     new_dataset_name="pickup_200blue_100red_stack_100blue_red_100red_blue")
+
     merge_datasets([
-        "pick_up_blue_200", "pick_up_blue_horizontal_distractors_25",
-        "pick_up_red_100", "pick_up_red_horizontal_distractors_25", 
-        "pick_up_green_25_with_distractors", "pick_up_green_horizontal_distractors_25",
-        "pick_up_yellow_block_25", "pick_up_yellow_horizontal_distractors_25",
-        "stack_blue_red_100", "stack_red_blue_100",
-        "recover_from_extreme_positions_50",
-        "knock_over_bottle_25", "pick_up_bottle_25", "pick_up_bottle_horizontal_25",
-        "place_blue_in_box_50", "pack_box_50", "unpack_box_50",
-        "pick_up_doll_25", "pick_up_doll_25_with_distractors",
-        "pick_up_sponge_25",
+        "ironing_block_25", "ironing_block"
     ],
-        new_dataset_name="21datasets_06_12_2024_recover_stack_knockover_pack_pickup_place_unpack")
+        new_dataset_name="ironing_block_75")
