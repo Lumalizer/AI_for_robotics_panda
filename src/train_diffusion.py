@@ -1,0 +1,109 @@
+from pathlib import Path
+import torch
+from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
+from lerobot.common.policies.diffusion.configuration_diffusion import DiffusionConfig
+from lerobot.common.policies.diffusion.modeling_diffusion import DiffusionPolicy
+
+
+def build_dataset_dataloader(repo_id: str, root: str, dataset_fps, batch_size, deltas
+                             ) -> tuple[LeRobotDataset, torch.utils.data.DataLoader]:
+
+    # horizon:
+    # -1 -> from the past
+    # 0 -> what we try to predict
+    # 1 ++ -> from the future
+    # with deltas=list(range(-1, 7)), we will predict 6 steps into the future and use 1 step from the past
+
+    deltas = [delta * 1/dataset_fps for delta in deltas]
+    delta_timestamps = {
+        "action": deltas,
+        "observation.image_primary": deltas,
+        "observation.image_wrist": deltas,
+        "observation.state": deltas,
+    }
+
+    dataset = LeRobotDataset(repo_id,
+                             root,
+                             local_files_only=True,
+                             delta_timestamps=delta_timestamps)
+
+    dataloader = torch.utils.data.DataLoader(
+        dataset,
+        num_workers=4,
+        batch_size=batch_size,
+        shuffle=True,
+        pin_memory=device != torch.device("cpu"),
+        drop_last=True,
+    )
+
+    return dataset, dataloader
+
+
+def build_airnet_diffusion_policy(dataset: LeRobotDataset) -> DiffusionPolicy:
+    n_deltas = len(dataset.delta_timestamps["action"])
+
+    airnet_cfg = DiffusionConfig(
+        input_shapes={"action": [7],
+                      "observation.image_primary": (3, 480, 640),
+                      "observation.image_wrist": (3, 480, 640),
+                      "observation.state": [11]},
+        output_shapes={"action": [7]},
+        input_normalization_modes={"observation.image_primary": "mean_std",
+                                   "observation.image_wrist": "mean_std",
+                                   "observation.state": "min_max"},
+        crop_shape=[440, 560],
+        horizon=n_deltas,
+        n_obs_steps=n_deltas,
+    )
+
+    return DiffusionPolicy(airnet_cfg, dataset_stats=dataset.meta.stats)
+
+
+def train_diffusion_policy(policy: DiffusionPolicy, dataloader, device, training_steps=5000,
+                           log_freq=25, save_dir=None) -> DiffusionPolicy:
+    step = 0
+    done = False
+
+    policy.train()
+    policy.to(device)
+    optimizer = torch.optim.Adam(policy.parameters(), lr=1e-4)
+
+    while not done:
+        for batch in dataloader:
+            batch = {k: v.to(device, non_blocking=True) for k, v in batch.items()}
+            output_dict = policy.forward(batch)
+            loss = output_dict["loss"]
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+
+            if step % log_freq == 0:
+                print(f"step: {step} loss: {loss.item():.3f}")
+            step += 1
+            if step >= training_steps:
+                done = True
+                break
+
+    if save_dir is not None:
+        policy.save_pretrained(save_dir)
+
+    return policy
+
+
+if __name__ == "__main__":
+    output_directory = Path("../outputs/train/test_diffusion")
+    output_directory.mkdir(parents=True, exist_ok=True)
+    device = torch.device("cuda")
+
+    horizon = list(range(-1, 7))
+    dataset_fps = 15
+
+    dataset, dataloader = build_dataset_dataloader(
+        repo_id="airnet/pick_up_red_100",
+        root="../datasets/lerobot_datasets/pick_up_red_100",
+        dataset_fps=dataset_fps,
+        batch_size=64,
+        deltas=horizon)
+
+    policy = build_airnet_diffusion_policy(dataset)
+    policy = train_diffusion_policy(policy, dataloader, device, save_dir=output_directory)

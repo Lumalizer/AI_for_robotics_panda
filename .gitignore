@@ -4,6 +4,8 @@ examples
 trained_models
 wandb
 datasets
+outputs
+src/lerobot
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
