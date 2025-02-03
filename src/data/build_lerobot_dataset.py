@@ -12,15 +12,15 @@ features = {
         "shape": (7, ),
         "names": ["dx", "dy", "dz", "d_roll", "d_pitch", "d_yaw", "d_gripper"]
     },
-    "observation.primary_image": {
+    "observation.image_primary": {
         "dtype": "image",
-        "shape": (480, 640, 3),
-        "names": ["height", "width", "channels"]
+        "shape": (3, 480, 640),
+        "names": ["channels", "height", "width"]
     },
-    "observation.wrist_image": {
+    "observation.image_wrist": {
         "dtype": "image",
-        "shape": (480, 640, 3),
-        "names": ["height", "width", "channels"]
+        "shape": (3, 480, 640),
+        "names": ["channels", "height", "width"]
     },
     "observation.state": {
         "dtype": "float32",
@@ -43,7 +43,8 @@ def get_mp4_frames(mp4_path, resampled_indices):
     cap.release()
 
     frames = [cv2.cvtColor(frames[i], cv2.COLOR_BGR2RGB) for i in resampled_indices]
-    return np.array(frames)
+    # make sure images are channel first by swapping the axes
+    return np.array(frames).swapaxes(1, 3).swapaxes(2, 3)
 
 
 def process_episode(episode_path: str, dataset: LeRobotDataset, fps: int):
@@ -73,8 +74,8 @@ def process_episode(episode_path: str, dataset: LeRobotDataset, fps: int):
 
         dataset.add_frame({
             "action": action,
-            "observation.primary_image": primary_frames[i],
-            "observation.wrist_image": wrist_frames[i],
+            "observation.image_primary": primary_frames[i],
+            "observation.image_wrist": wrist_frames[i],
             "observation.state": state
         })
 
@@ -103,4 +104,4 @@ def create_lerobot_dataset(dataset_name: str, fps: int, features: dict = feature
 
 
 if __name__ == "__main__":
-    dataset = create_lerobot_dataset("test2", fps=15)
+    dataset = create_lerobot_dataset("pick_up_red_100", fps=15)
