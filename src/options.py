@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Literal
 import os
 
 @dataclass
@@ -11,6 +12,8 @@ class Options:
     
     subproject_folder: str = '' # "experiment" subfolder
     model_type: str = None
+
+    action_space: Literal["cartesian", "joint"] = "cartesian"
     
     xyz_multiplier: float = 0.03
     angle_multiplier: float = 15

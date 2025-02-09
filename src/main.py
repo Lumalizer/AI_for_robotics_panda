@@ -8,7 +8,8 @@ opts = Options(
     
     execution_horizon=8,
     prediction_horizon=8,
-    
+    action_space="cartesian",
+
     mode="octo",
     model_type="small",
     max_seconds=60,
