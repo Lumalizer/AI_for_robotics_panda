@@ -50,7 +50,9 @@ def build_airnet_diffusion_policy(dataset: LeRobotDataset) -> DiffusionPolicy:
         output_shapes={"action": [7]},
         input_normalization_modes={"observation.image_primary": "mean_std",
                                    "observation.image_wrist": "mean_std",
-                                   "observation.state": "min_max"},
+                                   "observation.state": "min_max",
+                                   },
+        output_normalization_modes={"action": "min_max"},
         crop_shape=[440, 560],
         horizon=n_deltas,
         n_obs_steps=n_deltas,
@@ -91,7 +93,8 @@ def train_diffusion_policy(policy: DiffusionPolicy, dataloader, device, training
 
 
 if __name__ == "__main__":
-    output_directory = Path("../outputs/train/test_diffusion")
+    dataset_to_use = "pick_up_blue_200"
+    output_directory = Path(f"../outputs/train_diffusion/{dataset_to_use}")
     output_directory.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda")
 
@@ -99,8 +102,8 @@ if __name__ == "__main__":
     dataset_fps = 15
 
     dataset, dataloader = build_dataset_dataloader(
-        repo_id="airnet/pick_up_red_100",
-        root="../datasets/lerobot_datasets/pick_up_red_100",
+        repo_id=f"airnet/{dataset_to_use}",
+        root=f"../datasets/lerobot_datasets/{dataset_to_use}",
         dataset_fps=dataset_fps,
         batch_size=64,
         deltas=horizon)
