@@ -3,9 +3,11 @@ import torch
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
 from lerobot.common.policies.diffusion.configuration_diffusion import DiffusionConfig
 from lerobot.common.policies.diffusion.modeling_diffusion import DiffusionPolicy
+import argparse
+import wandb
 
 
-def build_dataset_dataloader(repo_id: str, root: str, dataset_fps, batch_size, deltas
+def build_dataset_dataloader(repo_id: str, root: str, dataset_fps, batch_size, deltas, device
                              ) -> tuple[LeRobotDataset, torch.utils.data.DataLoader]:
 
     # horizon:
@@ -43,10 +45,11 @@ def build_airnet_diffusion_policy(dataset: LeRobotDataset) -> DiffusionPolicy:
     n_deltas = len(dataset.delta_timestamps["action"])
 
     airnet_cfg = DiffusionConfig(
-        input_shapes={"action": [7],
-                      "observation.image_primary": (3, 480, 640),
-                      "observation.image_wrist": (3, 480, 640),
-                      "observation.state": [11]},
+        input_shapes={
+            # "action": [7],
+            "observation.image_primary": (3, 480, 640),
+            "observation.image_wrist": (3, 480, 640),
+            "observation.state": [11]},
         output_shapes={"action": [7]},
         input_normalization_modes={"observation.image_primary": "mean_std",
                                    "observation.image_wrist": "mean_std",
@@ -62,8 +65,8 @@ def build_airnet_diffusion_policy(dataset: LeRobotDataset) -> DiffusionPolicy:
 
 
 def train_diffusion_policy(policy: DiffusionPolicy, dataloader, device, training_steps=5000,
-                           log_freq=25, save_dir=None) -> DiffusionPolicy:
-    step = 0
+                           log_freq=25, save_dir=None, save_wdb=False) -> DiffusionPolicy:
+    step = -1
     done = False
 
     policy.train()
@@ -79,9 +82,12 @@ def train_diffusion_policy(policy: DiffusionPolicy, dataloader, device, training
             optimizer.step()
             optimizer.zero_grad()
 
+            step += 1
+
             if step % log_freq == 0:
                 print(f"step: {step} loss: {loss.item():.3f}")
-            step += 1
+                if save_wdb:
+                    wandb.log({"loss": loss.item(), "step": step})
             if step >= training_steps:
                 done = True
                 break
@@ -92,21 +98,57 @@ def train_diffusion_policy(policy: DiffusionPolicy, dataloader, device, training
     return policy
 
 
-if __name__ == "__main__":
-    dataset_to_use = "pick_up_blue_200"
-    output_directory = Path(f"../outputs/train_diffusion/{dataset_to_use}")
-    output_directory.mkdir(parents=True, exist_ok=True)
+def run(args):
+    wandb.init(project="diffusion policy", name=args.name)
+
     device = torch.device("cuda")
 
-    horizon = list(range(-1, 7))
-    dataset_fps = 15
-
     dataset, dataloader = build_dataset_dataloader(
-        repo_id=f"airnet/{dataset_to_use}",
-        root=f"../datasets/lerobot_datasets/{dataset_to_use}",
-        dataset_fps=dataset_fps,
-        batch_size=64,
-        deltas=horizon)
+        repo_id=f"airnet/{args.name}",
+        root=args.data_root_dir,
+        dataset_fps=args.dataset_fps,
+        batch_size=args.batch_size,
+        deltas=list(range(-1, args.deltas_limit)),
+        device=device)
 
     policy = build_airnet_diffusion_policy(dataset)
-    policy = train_diffusion_policy(policy, dataloader, device, save_dir=output_directory)
+    policy = train_diffusion_policy(policy, dataloader, device, save_dir=args.run_root_dir, save_wdb=True)
+    return policy
+
+
+if __name__ == "__main__":
+    # dataset_to_use = "pick_up_blue_200"
+    # output_directory = Path(f"../outputs/train_diffusion/{dataset_to_use}")
+    # output_directory.mkdir(parents=True, exist_ok=True)
+    # device = torch.device("cuda")
+
+    # horizon = list(range(-1, 7))
+    # dataset_fps = 15
+
+    # dataset, dataloader = build_dataset_dataloader(
+    #     repo_id=f"airnet/{dataset_to_use}",
+    #     root=f"../datasets/lerobot_datasets/{dataset_to_use}",
+    #     dataset_fps=dataset_fps,
+    #     batch_size=16,
+    #     deltas=horizon)
+
+    # policy = build_airnet_diffusion_policy(dataset)
+    # policy = train_diffusion_policy(policy, dataloader, device, save_dir=output_directory)
+    parser = argparse.ArgumentParser(description='Diffusion model name, data root directory, and run root directory')
+    parser.add_argument('--name', type=str)
+    parser.add_argument('--data_root_dir', type=str)
+    parser.add_argument('--run_root_dir', type=str)
+    parser.add_argument('--dataset_fps', type=int, default=15)
+    parser.add_argument('--deltas_limit', type=int, default=7)
+    parser.add_argument('--batch_size', type=int, default=32)
+    parser.add_argument('--max_steps', type=int, default=5000)
+    # parser.add_argument('--save_steps', type=int, default=1000)
+    args = parser.parse_args()
+
+    if args.data_root_dir is None:
+        args.data_root_dir = f"datasets/lerobot_datasets/{args.name}"
+    if args.run_root_dir is None:
+        args.run_root_dir = f"outputs/train_diffusion/{args.name}"
+
+    print(args)
+    run(args)
